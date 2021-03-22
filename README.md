@@ -18,9 +18,10 @@
 
 [OnlinePlayerAPI](https://github.com/zhang-anzhi/MCDReforgedPlugins/tree/master/OnlinePlayerAPI)（MCDR 插件）：引用 API
 
-### To-do
+### Todo
 
 - [ ] 支持 home 与 sethome 功能，并尝试直接复用来自 Essentials 插件的数据
 - [ ] 支持玩家死亡的回溯传送
+- [ ] 以 UUID 区分不同玩家
 
 \>ωo

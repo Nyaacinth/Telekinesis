@@ -14,36 +14,45 @@ tpRequestTimeout = 30
 # 同意请求后等待几秒传送(<=0代表不等待)
 waitTpForRequest = 0
 
+# 服务端工作目录（相对位置）
+serverLocation = 'server'
+
+# 插件配置文件目录名
+configDirectory = 'Telekinesis'
+
 # ========= 配置参数结束 =========
 PLUGIN_METADATA = {
     'id': 'telekinesis',
     'version': '0.0.2',
     'name': 'Telekinesis',
-    'description': 'Another Teleport Helper'
+    'description': 'Another Teleport Helper',
+	'dependencies': {
+		'minecraft_data_api': '*',
+        'online_player_api': '*'
+	}
 }
 
 getPos = 'no'
 SpawnPos = []
 
 def readSpawnPos():
-    global SpawnPos
-    nbtData = nbt.nbt.NBTFile('server/world/level.dat', 'rb')
+    nbtData = nbt.nbt.NBTFile(f"{serverLocation}/world/level.dat", 'rb')
     nbtData = nbtData["Data"]
-    SpawnPos = [nbtData["SpawnX"].value, nbtData["SpawnY"].value, nbtData["SpawnZ"].value]
+    readSpawnPos.result = [nbtData["SpawnX"].value, nbtData["SpawnY"].value, nbtData["SpawnZ"].value]
 
 def getTpList():
-    f = open('plugins/tpHelper/requests.json','r',encoding='utf8')
+    f = open(f"plugins/{configDirectory}/requests.json",'r',encoding='utf8')
     data = json.load(f)
     f.close()
     return data
 
 def writeTpList(data):
-    f = open('plugins/tpHelper/requests.json','w',encoding='utf8')
+    f = open(f"plugins/{configDirectory}/requests.json",'w',encoding='utf8')
     json.dump(data,f)
     f.close()
 
 def getLastTpPosList():
-    f = open('plugins/tpHelper/lastPos.json','r',encoding='utf8')
+    f = open(f"plugins/{configDirectory}/lastPos.json",'r',encoding='utf8')
     data = json.load(f)
     f.close()
     return data
@@ -81,7 +90,7 @@ def create_req(server,info,name,to):
     timeout = tpRequestTimeout
     print_message(server,info,f"已向玩家 {to} 发送传送请求")
     server.tell(to,f"§d[Telekinesis] §6玩家 {name} 想传送到你身边")
-    server.tell(to,f"§d[Telekinesis] §6在 {timeout} 秒内输入 !!tp yes 同意， 输入 !!tp no 拒绝")
+    server.tell(to,f"§d[Telekinesis] §6在 {timeout} 秒内输入 {Prefix} yes 同意， 输入 {Prefix} no 拒绝")
     
     # 等待回复
     while timeout>0:
@@ -114,7 +123,7 @@ def create_req(server,info,name,to):
     delete_req(name)
 
 def writeLastTpPosList(data):
-    f = open('plugins/tpHelper/lastPos.json','w',encoding='utf8')
+    f = open(f"plugins/{configDirectory}/lastPos.json",'w',encoding='utf8')
     json.dump(data,f)
     f.close()
 
@@ -228,8 +237,11 @@ def print_message(server, info, msg, tell=True, prefix='§d[Telekinesis] §6'):
 
 def on_load(server, old):
     server.register_help_message(f'{Prefix} help','显示 Telekinesis 帮助')
-    if not os.path.exists('plugins/tpHelper'):
-        os.mkdir('plugins/tpHelper')
+    if not os.path.exists(f"plugins/{configDirectory}"):
+        os.mkdir(f"plugins/{configDirectory}")
     writeTpList([])
     writeLastTpPosList({})
-    readSpawnPos()
+    try:
+        readSpawnPos()
+    except Exception as e:
+        server.logger.warn('level.dat does not exists, command "spawn" will not work.')

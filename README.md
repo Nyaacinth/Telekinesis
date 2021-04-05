@@ -14,9 +14,9 @@
 
 ### 依赖
 
-[nbt](https://pypi.org/project/NBT)（Python 库）：用于读取存档获取出生点
+[nbt](https://pypi.org/project/NBT)：用于读取存档获取出生点
 
-[OnlinePlayerAPI](https://github.com/zhang-anzhi/MCDReforgedPlugins/tree/master/OnlinePlayerAPI)（MCDR 插件）：引用 API
+[OnlinePlayerAPI](https://github.com/zhang-anzhi/MCDReforgedPlugins/tree/master/OnlinePlayerAPI)：引用 API
 
 ### Todo
 

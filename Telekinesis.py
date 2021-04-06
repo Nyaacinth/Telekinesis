@@ -3,6 +3,7 @@ import time
 import json
 import os
 import nbt
+import fcntl
 import traceback
 from mcdreforged.api.decorator import new_thread
 
@@ -42,24 +43,32 @@ def readSpawnPos(): # 读重生点
 
 def readReqList(): # 读请求队列
     f = open(f"plugins/{configDirectory}/requests.json",'r',encoding='utf8')
+    fcntl.flock(f,fcntl.LOCK_SH)
     data = json.load(f)
+    fcntl.flock(f,fcntl.LOCK_UN)
     f.close()
     return data
 
 def writeReqList(data): # 写请求队列
     f = open(f"plugins/{configDirectory}/requests.json",'w',encoding='utf8')
+    fcntl.flock(f,fcntl.LOCK_EX)
     json.dump(data,f)
+    fcntl.flock(f,fcntl.LOCK_UN)
     f.close()
 
 def readLastTpPosList(): # 读回溯传送队列
     f = open(f"plugins/{configDirectory}/lastPos.json",'r',encoding='utf8')
+    fcntl.flock(f,fcntl.LOCK_SH)
     data = json.load(f)
+    fcntl.flock(f,fcntl.LOCK_UN)
     f.close()
     return data
 
 def writeLastTpPosList(data): # 写回溯传送队列
     f = open(f"plugins/{configDirectory}/lastPos.json",'w',encoding='utf8')
+    fcntl.flock(f,fcntl.LOCK_EX)
     json.dump(data,f)
+    fcntl.flock(f,fcntl.LOCK_UN)
     f.close()
 
 def getPlayerCoordinate(server,player): # 获取玩家坐标（由于 MinecraftDataAPI 限制，不可直接在任务执行者线程中使用）

@@ -91,7 +91,7 @@ def getPlayerCoordinate(server,player): # 获取玩家坐标（由于 MinecraftD
     return coordinate
 
 def getPlayerDimension(server,player): # 获取玩家所处维度（由于 MinecraftDataAPI 限制，不可直接在任务执行者线程中使用）
-    dimension = server.get_plugin_instance('minecraft_data_api').get_player_dimension(player)
+    dimension = server.get_plugin_instance('minecraft_data_api').get_player_info(player,'Dimension')
     return dimension
 
 def findReqBy(tag,player): # 依赖 readReqList() ，查询是否存在请求
@@ -112,9 +112,9 @@ def getLastTpPos(player,drop=False): # 依赖 readLastTpPosList() ，查询是�
     else:
         return []
 
-def writeLastTpPos(player,x,y,z): # 依赖 readLastTpPosList() ，写入可回溯的传送
+def writeLastTpPos(player,x,y,z,dimension='minecraft:overworld'): # 依赖 readLastTpPosList() ，写入可回溯的传送
     data = readLastTpPosList()
-    data[player] = [x,y,z]
+    data[player] = [x,y,z,dimension]
     writeLastTpPosList(data)
 
 def checkPlayerIfOnline(server,player): # 检查玩家在线情况（由于 MinecraftDataAPI 限制，不可直接在任务执行者线程中使用）
@@ -184,7 +184,8 @@ def createReq(server,info,sendby,to): # 新增传送请求
                 time.sleep(1)
                 sec -= 1
             coordinate = getPlayerCoordinate(server,player=sendby)
-            writeLastTpPos(sendby,coordinate.x,coordinate.y,coordinate.z)
+            dimension = getPlayerDimension(server,player=sendby)
+            writeLastTpPos(sendby,coordinate.x,coordinate.y,coordinate.z,dimension)
             server.execute(f"/tp {sendby} {to}")
             break
         elif req['status']=='no': # 不同意
@@ -227,8 +228,9 @@ def tp_spawn(server,info): # !!tp spawn
         sec -= 1
     tellMessage(server,info,"传送到世界重生点")
     coordinate = getPlayerCoordinate(server,player=info.player)
-    writeLastTpPos(info.player,coordinate.x,coordinate.y,coordinate.z)
-    server.execute(f"/tp {info.player} {readSpawnPos.result[0]} {readSpawnPos.result[1]} {readSpawnPos.result[2]}")
+    dimension = getPlayerDimension(server,player=info.player)
+    writeLastTpPos(info.player,coordinate.x,coordinate.y,coordinate.z,dimension)
+    server.execute(f"/execute in minecraft:overworld run tp {info.player} {readSpawnPos.result[0]} {readSpawnPos.result[1]} {readSpawnPos.result[2]}")
 
 @new_thread
 def tp_yesno(server,info,command): # !! tp yes/no
@@ -251,8 +253,9 @@ def tp_back(server,info): # !! tp back
             sec -= 1
         tellMessage(server,info,"正在进行回溯传送")
         coordinate = getPlayerCoordinate(server,player=info.player)
-        writeLastTpPos(info.player,coordinate.x,coordinate.y,coordinate.z)
-        server.execute(f"/tp {info.player} {pos[0]} {pos[1]} {pos[2]}")
+        dimension = getPlayerDimension(server,player=info.player)
+        writeLastTpPos(info.player,coordinate.x,coordinate.y,coordinate.z,dimension)
+        server.execute(f"/execute in {pos[3]} run tp {info.player} {pos[0]} {pos[1]} {pos[2]}")
     else:
         tellMessage(server,info,"您没有可回溯的传送")
 

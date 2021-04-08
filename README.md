@@ -2,7 +2,7 @@
 
 一个小小的传送插件，源于 dream-rhythm 的 tpHelper ，现正重写中。
 
-可用且功能齐全的版本存在于已发布的 v0.0.2-alpha ，请移步 [release](https://github.com/Nyaacinth/Telekinesis/releases/tag/b8a0cb8) 查看
+现阶段功能已完全可以替代 v0.0.2-alpha，若有需求请直接下载仓库中的版本使用
 
 ### 功能
 

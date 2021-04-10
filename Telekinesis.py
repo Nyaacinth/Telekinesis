@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import time
 import json
+import yaml
 import os
 import nbt
 import fcntl
@@ -9,61 +10,63 @@ from mcdreforged.api.decorator import new_thread
 class InvalidCommandError(Exception):
     pass
 
-# ========= 配置参数开始 =========
-# 指令前綴
-Prefix = '!!tp'
-
-# 消息前缀
-MessagePrefix = '§d[Telekinesis] §6'
-
-# 请求后几秒自动拒绝
-tpRequestTimeout = 30
-
-# 同意请求后等待几秒传送(<=0代表不等待)
-waitTpForRequest = 0
-
-# level.dat 存放目录
-levelLocation = 'server/world'
-
-# 插件配置文件目录名
-configDirectory = 'Telekinesis'
-
-# ========= 配置参数结束 =========
+# 标识性变量，此处的修改不受支持
 
 PLUGIN_METADATA = {
     'id': 'telekinesis',
-    'version': '0.1.3',
+    'version': '0.2.1',
     'name': 'Telekinesis',
 	'dependencies': {
 		'minecraft_data_api': '*'
 	}
 }
 
-helpmsg=f'''
-    {Prefix} spawn - 传送到世界重生点
-    {Prefix} back - 进行回溯传送
-    {Prefix} ask <玩家> - 请求传送自己到 <玩家> 身边
-    {Prefix} <yes/no> - 同意/拒绝传送到自己身边的请求
-    {Prefix} help - 展示本帮助信息
-    {Prefix} about - 关于
-'''
+message_prefix = '§d[Telekinesis] §6' # 消息前缀
 
-aboutmsg=f'''
-    当前版本： v{PLUGIN_METADATA['version']}
+config_directory = 'Telekinesis' # 插件配置文件目录名
 
-    一个小小的传送插件， 维护者： Nyaacinth
-    在此致谢 dream-rhythm ， 本插件以 tpHelper 为工作基础重写而来
-'''
+config_version = 1
 
 # 底层处理
 
+def generateDefaultConfig(): # 生成默认配置文件
+    data = {}
+    data['config_version'] = config_version
+    config = {}
+    config['command_prefix'] = '!!tp'
+    config['teleport_request_timeout'] = 30
+    config['teleport_hold_time'] = 0
+    config['level_location'] = 'server/world'
+    data['config'] = config
+    f = open(f"config/{config_directory}/config.yaml",'w',encoding='utf8')
+    yaml.dump(data,f)
+    f.close
+
+def getConfigKey(keyname): # 读取配置键
+    f = open(f"config/{config_directory}/config.yaml",'r',encoding='utf8')
+    data = yaml.safe_load(f)
+    f.close
+    if keyname in data['config'].keys():
+        return data['config'][keyname]
+    else:
+        raise RuntimeError('invalid config file')
+
+def verifyConfigVersion(): # 验证配置文件版本
+    f = open(f"config/{config_directory}/config.yaml",'r',encoding='utf8')
+    data = yaml.safe_load(f)
+    f.close
+    if data['config_version']==config_version:
+        return True
+    else:
+        return False
+
 def readSpawnPos(): # 读重生点
-    nbtData = nbt.nbt.NBTFile(f"{levelLocation}/level.dat", 'rb')
-    nbtData = nbtData["Data"]
-    readSpawnPos.result = [nbtData["SpawnX"].value, nbtData["SpawnY"].value, nbtData["SpawnZ"].value]
+    nbtData = nbt.nbt.NBTFile(f"{getConfigKey('level_location')}/level.dat", 'rb')
+    nbtData = nbtData['Data']
+    readSpawnPos.result = [nbtData['SpawnX'].value, nbtData['SpawnY'].value, nbtData['SpawnZ'].value]
 
 def readReqList(): # 读请求队列
-    f = open(f"plugins/{configDirectory}/requests.json",'r',encoding='utf8')
+    f = open(f"config/{config_directory}/requests.json",'r',encoding='utf8')
     fcntl.flock(f,fcntl.LOCK_SH)
     data = json.load(f)
     fcntl.flock(f,fcntl.LOCK_UN)
@@ -71,14 +74,14 @@ def readReqList(): # 读请求队列
     return data
 
 def writeReqList(data): # 写请求队列
-    f = open(f"plugins/{configDirectory}/requests.json",'w',encoding='utf8')
+    f = open(f"config/{config_directory}/requests.json",'w',encoding='utf8')
     fcntl.flock(f,fcntl.LOCK_EX)
     json.dump(data,f)
     fcntl.flock(f,fcntl.LOCK_UN)
     f.close()
 
 def readHomeList(): # 读家园传送点列表
-    f = open(f"plugins/{configDirectory}/homes.json",'r',encoding='utf8')
+    f = open(f"config/{config_directory}/homes.json",'r',encoding='utf8')
     fcntl.flock(f,fcntl.LOCK_SH)
     data = json.load(f)
     fcntl.flock(f,fcntl.LOCK_UN)
@@ -86,7 +89,7 @@ def readHomeList(): # 读家园传送点列表
     return data
 
 def writeHomeList(data): # 写家园传送点列表
-    f = open(f"plugins/{configDirectory}/homes.json",'w',encoding='utf8')
+    f = open(f"config/{config_directory}/homes.json",'w',encoding='utf8')
     fcntl.flock(f,fcntl.LOCK_EX)
     human_readable_data = json.dumps(data,sort_keys=True,indent=4,separators=(',', ':'))
     f.write(human_readable_data)
@@ -94,7 +97,7 @@ def writeHomeList(data): # 写家园传送点列表
     f.close()
 
 def readLastTpPosList(): # 读回溯传送队列
-    f = open(f"plugins/{configDirectory}/lastPos.json",'r',encoding='utf8')
+    f = open(f"config/{config_directory}/lastPos.json",'r',encoding='utf8')
     fcntl.flock(f,fcntl.LOCK_SH)
     data = json.load(f)
     fcntl.flock(f,fcntl.LOCK_UN)
@@ -102,7 +105,7 @@ def readLastTpPosList(): # 读回溯传送队列
     return data
 
 def writeLastTpPosList(data): # 写回溯传送队列
-    f = open(f"plugins/{configDirectory}/lastPos.json",'w',encoding='utf8')
+    f = open(f"config/{config_directory}/lastPos.json",'w',encoding='utf8')
     fcntl.flock(f,fcntl.LOCK_EX)
     json.dump(data,f)
     fcntl.flock(f,fcntl.LOCK_UN)
@@ -149,12 +152,23 @@ def getHomes(player): # 依赖 readHomeList() ，获取家园传送点列表
         return homes
     return []
 
+def getLastTpPos(player,drop=False): # 依赖 readLastTpPosList() ，查询是否存在可回溯的传送
+    data = readLastTpPosList()
+    if player in data:
+        pos = data[player]
+        if drop==True:
+            del data[player]
+            writeLastTpPosList(data)
+        return pos
+    else:
+        return []
+
 def writeLastTpPos(player,x,y,z,dimension='minecraft:overworld'): # 依赖 readLastTpPosList() ，写入可回溯的传送
     data = readLastTpPosList()
     data[player] = [x,y,z,dimension]
     writeLastTpPosList(data)
 
-def tellMessage(server,to,msg,tell=True,prefix=MessagePrefix): # 向玩家打印信息
+def tellMessage(server,to,msg,tell=True,prefix=message_prefix): # 向玩家打印信息
     msg = prefix + msg
     if not tell:
         server.say(msg)
@@ -193,7 +207,8 @@ def createReq(server,sendby,to): # 新增传送请求
 @new_thread # 原因：耗时长
 def handleReq(server,sendby,to): # 处理传送请求
     # 传送请求文字
-    timeout = tpRequestTimeout
+    timeout = getConfigKey('teleport_request_timeout')
+    Prefix = getConfigKey('command_prefix')
     tellMessage(server,sendby,f"已向玩家 {to} 发送传送请求")
     tellMessage(server,to,f"玩家 {sendby} 想传送到你身边")
     tellMessage(server,to,f"在 {timeout} 秒内输入 {Prefix} yes 同意， 输入 {Prefix} no 拒绝")
@@ -205,9 +220,9 @@ def handleReq(server,sendby,to): # 处理传送请求
             time.sleep(1)
             timeout -= 1
         elif req['status']=='yes': # 同意
-            sec = waitTpForRequest
+            sec = getConfigKey('teleport_hold_time')
             if sec!=0:
-                tellMessage(server,to,f"已同意来自玩家 {sendby} 的传送请求， 将在 {waitTpForRequest} 秒后开始传送")
+                tellMessage(server,to,f"已同意来自玩家 {sendby} 的传送请求， 将在 {sec} 秒后开始传送")
                 tellMessage(server,sendby,msg=f"玩家 {to} 已同意传送请求， 将在 {sec} 秒后传送到玩家 {to} 身边")
             else:
                 tellMessage(server,to,f"已同意来自玩家 {sendby} 的传送请求， 正在传送")
@@ -226,7 +241,7 @@ def handleReq(server,sendby,to): # 处理传送请求
             break
 
     # 请求等待超时
-    if timeout==0 and tpRequestTimeout!=0:
+    if timeout==0 and getConfigKey('teleport_request_timeout')!=0:
         tellMessage(server,to,f"来自玩家 {sendby} 的传送请求已超时")
         tellMessage(server,sendby,f"玩家 {to} 超时未回复， 传送请求已被系统取消")
 
@@ -236,14 +251,33 @@ def handleReq(server,sendby,to): # 处理传送请求
 # 指令
 
 def show_help(server,info): # 插件帮助，展示可用子命令
+    Prefix = getConfigKey('command_prefix')
+    helpmsg = f'''
+    {Prefix} spawn - 传送到世界重生点
+    {Prefix} back - 进行回溯传送
+    {Prefix} ask <玩家> - 请求传送自己到 <玩家> 身边
+    {Prefix} <yes/no> - 同意/拒绝传送到自己身边的请求
+    {Prefix} sethome <传送点名称> - 设置家园传送点
+    {Prefix} home <传送点名称> - 传送到家园
+    {Prefix} homes - 查看已设置的家园传送点
+    {Prefix} delhome <传送点名称> - 删除家园传送点
+    {Prefix} help - 展示本帮助信息
+    {Prefix} about - 关于
+    '''
     tellMessage(server,info.player,'帮助信息\n'+helpmsg)
 
 def show_about(server,info): # 展示插件关于信息
+    aboutmsg = f'''
+    当前版本： v{PLUGIN_METADATA['version']}
+
+    一个小小的传送插件， 维护者： Nyaacinth
+    在此致谢 dream-rhythm ， 本插件以 tpHelper 为工作基础重写而来
+    '''
     tellMessage(server,info.player,'关于信息\n'+aboutmsg)
 
 @new_thread # 原因：间接引用了 MinecraftDataAPI（getPlayerCoordinate/getPlayerDimension）
 def tp_spawn(server,info): # !!tp spawn
-    sec = waitTpForRequest
+    sec = getConfigKey('teleport_hold_time')
     if sec!=0:
         tellMessage(server,info.player,f"系统已收到指令， 将在 {sec} 秒后传送到世界重生点")
     while sec>0:
@@ -271,7 +305,7 @@ def tp_sethome(server,info,command=None,replace=False): # !!tp sethome
 
 @new_thread # 原因：间接引用了 MinecraftDataAPI（getPlayerCoordinate/getPlayerDimension）
 def tp_home(server,info,command=None): # !!tp home
-    sec = waitTpForRequest
+    sec = getConfigKey('teleport_hold_time')
     if command!=None and command[2]!=None:
         home=command[2].lower()
     else:
@@ -304,6 +338,7 @@ def tp_delhome(server,info,command=None): # !!tp delhome
         tellMessage(server,info.player,f"家园传送点 {home} 不存在")
 
 def tp_homes(server,info): # !!tp homes
+    Prefix = getConfigKey('command_prefix')
     homes = ' '.join(getHomes(info.player))
     if homes!='':
         tellMessage(server,info.player,f"您设置的家园传送点有：\n\n    {homes}\n")
@@ -313,13 +348,13 @@ def tp_homes(server,info): # !!tp homes
 def tp_yesno(server,info,command): # !!tp yes/no
     req = findReqBy('to',info.player)
     if req==None:
-        tellMessage(server,info.player,"目前没有待确认的请求")
+        tellMessage(server,info.player,'目前没有待确认的请求')
     else:
         responseTpRequests(info.player,command[1].lower())
 
 @new_thread # 原因：间接引用了 MinecraftDataAPI（getPlayerCoordinate/getPlayerDimension）
 def tp_back(server,info): # !! tp back
-    sec = waitTpForRequest
+    sec = getConfigKey('teleport_hold_time')
     pos = getLastTpPos(info.player,True)
     if pos!=[]:
         if sec!=0:
@@ -327,22 +362,22 @@ def tp_back(server,info): # !! tp back
         while sec>0:
             time.sleep(1)
             sec -= 1
-        tellMessage(server,info.player,"正在进行回溯传送")
+        tellMessage(server,info.player,'正在进行回溯传送')
         coordinate = getPlayerCoordinate(server,player=info.player)
         dimension = getPlayerDimension(server,player=info.player)
         writeLastTpPos(info.player,coordinate.x,coordinate.y,coordinate.z,dimension)
         server.execute(f"execute in {pos[3]} run tp {info.player} {pos[0]} {pos[1]} {pos[2]}")
     else:
-        tellMessage(server,info.player,"您没有可回溯的传送")
+        tellMessage(server,info.player,'您没有可回溯的传送')
 
 @new_thread # 原因：间接引用了 MinecraftDataAPI（checkPlayerIfOnline）
 def tp_ask(server,info,command): # !! tp ask <playername>
     if checkPlayerIfOnline(server,command[2])==False:
-        tellMessage(server,info.player,"请求失败，指定的玩家不存在或未上线")
+        tellMessage(server,info.player,'请求失败，指定的玩家不存在或未上线')
     elif findReqBy('sendby',info.player):
-        tellMessage(server,info.player,"请求失败，请先处理现存的传送请求")
+        tellMessage(server,info.player,'请求失败，请先处理现存的传送请求')
     elif findReqBy('to',command[1]):
-        tellMessage(server,info.player,"请求失败，对方仍有待处理传送请求")
+        tellMessage(server,info.player,'请求失败，对方仍有待处理传送请求')
     else:
         createReq(server,info.player,command[2])
         handleReq(server,info.player,command[2])
@@ -350,12 +385,18 @@ def tp_ask(server,info,command): # !! tp ask <playername>
 # 外部回调处理
 
 def on_load(server, old): # 插件初始化
+    if not os.path.exists(f"config/{config_directory}"):
+        os.mkdir(f"config/{config_directory}")
+    if not os.path.exists(f"config/{config_directory}/config.yaml"):
+        generateDefaultConfig()
+    if not verifyConfigVersion():
+        server.unload_plugin(PLUGIN_METADATA['id'])
+        raise RuntimeError('incorrect config file version, please check changelog')
+    Prefix = getConfigKey('command_prefix')
     server.register_help_message(f'{Prefix} help','显示 Telekinesis 帮助')
-    if not os.path.exists(f"plugins/{configDirectory}"):
-        os.mkdir(f"plugins/{configDirectory}")
-    if not os.path.exists(f"plugins/{configDirectory}/homes.json"):
+    if not os.path.exists(f"config/{config_directory}/homes.json"):
         writeHomeList([])
-    if not os.path.exists(f"plugins/{configDirectory}/lastPos.json"):
+    if not os.path.exists(f"config/{config_directory}/lastPos.json"):
         writeLastTpPosList({})
     writeReqList([])
     try:
@@ -364,6 +405,7 @@ def on_load(server, old): # 插件初始化
         server.logger.warn('cannot read level.dat, command "spawn" will not work.')
 
 def on_user_info(server, info): # 接收输入
+    Prefix = getConfigKey('command_prefix')
     command = info.content.split()
     if len(command) == 0 or command[0] != Prefix:
         return
@@ -414,8 +456,8 @@ def on_user_info(server, info): # 接收输入
         else:
             raise InvalidCommandError
     except InvalidCommandError:
-        tellMessage(server,info.player,"指令输入有误!")
+        tellMessage(server,info.player,'指令输入有误!')
         show_help(server,info)
     except:
-        tellMessage(server,info.player,"内部错误")
+        tellMessage(server,info.player,'内部错误')
         print(traceback.format_exc())

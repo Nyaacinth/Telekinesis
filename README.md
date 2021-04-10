@@ -20,9 +20,27 @@
 
 <kbd>!!tp delhome \<传送点名称></kbd> 删除家园传送点
 
+<kbd>!!tp help</kbd> 查看帮助信息
+
+<kbd>!!tp about</kbd> 查看关于
+
+### 配置文件
+
+配置文件默认会生成于 MCDR 工作目录下的 config/Telekinesis/config.yaml ，目前存在以下内容：
+
+|键名|默认值|含义|
+|----|----|----|
+|`config_version`|`1`|配置文件版本，请勿修改|
+|`command_prefix`|`'!!tp'`|指令前缀|
+|`level_location`|`server/world`|level.dat 所在目录，用于检测出生点|
+|`teleport_hold_time`|`0`|传送执行前等待的时间（单位：秒）|
+|`teleport_request_timeout`|`30`|传送请求超时的时间（单位：秒）|
+
 ### 依赖
 
 [nbt](https://pypi.org/project/NBT)：用于读取存档获取出生点
+
+[PyYAML](https://pypi.org/project/PyYAML/)：配置文件
 
 [MinecraftDataAPI](https://github.com/MCDReforged/MinecraftDataAPI)：引用 API
 

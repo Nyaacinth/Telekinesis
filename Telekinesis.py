@@ -117,23 +117,19 @@ def writeLastTpPos(player,x,y,z,dimension='minecraft:overworld'): # 依赖 readL
     data[player] = [x,y,z,dimension]
     writeLastTpPosList(data)
 
+def tellMessage(server,to,msg,tell=True,prefix='§d[Telekinesis] §6'): # 向玩家打印信息
+    msg = prefix + msg
+    if not tell:
+        server.say(msg)
+    elif to is not None:
+        server.tell(to,msg)
+
 def checkPlayerIfOnline(server,player): # 检查玩家在线情况（由于 MinecraftDataAPI 限制，不可直接在任务执行者线程中使用）
     amount, limit, players = server.get_plugin_instance('minecraft_data_api').get_server_player_list()
     if player in players:
         return True
     else:
         return False
-
-def tellMessage(server,info,msg,to=None,tell=True,prefix='§d[Telekinesis] §6'): # 向玩家打印信息
-    msg = prefix + msg
-    if to is not None:
-        if checkPlayerIfOnline(server,to) is True:
-            server.tell(to,msg)
-    else:
-        if info.is_player and not tell:
-            server.say(msg)
-        else:
-            server.reply(info,msg)
 
 def responseTpRequests(to,answer): # 回复传送请求
     reqlist = readReqList()
@@ -155,17 +151,19 @@ def deleteReq(player): # 删除传送请求
         reqlist.pop(find)
         writeReqList(reqlist)
 
-def createReq(server,info,sendby,to): # 新增传送请求
+def createReq(server,sendby,to): # 新增传送请求
     reqlist = readReqList()
     reqlist.append({'sendby':sendby,'to':to,'status':'wait'})
     writeReqList(reqlist)
 
+@new_thread # 原因：耗时长
+def handleReq(server,sendby,to): # 处理传送请求
     # 传送请求文字
     timeout = tpRequestTimeout
-    tellMessage(server,info,f"已向玩家 {to} 发送传送请求")
-    tellMessage(server,info,f"玩家 {sendby} 想传送到你身边",to)
-    tellMessage(server,info,f"在 {timeout} 秒内输入 {Prefix} yes 同意， 输入 {Prefix} no 拒绝",to)
-    
+    tellMessage(server,sendby,f"已向玩家 {to} 发送传送请求")
+    tellMessage(server,to,f"玩家 {sendby} 想传送到你身边")
+    tellMessage(server,to,f"在 {timeout} 秒内输入 {Prefix} yes 同意， 输入 {Prefix} no 拒绝")
+
     # 等待回复
     while timeout>0:
         req = findReqBy('sendby',sendby)
@@ -174,13 +172,13 @@ def createReq(server,info,sendby,to): # 新增传送请求
             timeout -= 1
         elif req['status']=='yes': # 同意
             if waitTpForRequest != 0:
-                tellMessage(server,info,f"已同意来自玩家 {sendby} 的传送请求， 将在 {waitTpForRequest} 秒后开始传送",to)
+                tellMessage(server,to,f"已同意来自玩家 {sendby} 的传送请求， 将在 {waitTpForRequest} 秒后开始传送")
             else:
-                tellMessage(server,info,f"已同意来自玩家 {sendby} 的传送请求， 正在传送",to)
-            tellMessage(server,info,f"玩家 {to} 已同意传送请求， 正在传送")
+                tellMessage(server,to,f"已同意来自玩家 {sendby} 的传送请求， 正在传送")
+            tellMessage(server,sendby,f"玩家 {to} 已同意传送请求， 正在传送")
             sec = waitTpForRequest
             while sec>0:
-                tellMessage(server,info=None,msg=f"即将开始传送， 将在 {sec} 秒后传送到玩家 {to} 身边",to=sendby)
+                tellMessage(server,sendby,msg=f"即将开始传送， 将在 {sec} 秒后传送到玩家 {to} 身边")
                 time.sleep(1)
                 sec -= 1
             coordinate = getPlayerCoordinate(server,player=sendby)
@@ -189,88 +187,88 @@ def createReq(server,info,sendby,to): # 新增传送请求
             server.execute(f"/tp {sendby} {to}")
             break
         elif req['status']=='no': # 不同意
-            tellMessage(server,info,f"已拒绝来自玩家 {sendby} 的传送请求， 取消传送",to)
-            tellMessage(server,info,f"{to} 拒绝了传送请求")
+            tellMessage(server,to,f"已拒绝来自玩家 {sendby} 的传送请求， 取消传送")
+            tellMessage(server,sendby,f"{to} 拒绝了传送请求")
             break
-    
+
     # 请求等待超时
     if timeout==0 and tpRequestTimeout!=0:
-        tellMessage(server,info,f"来自玩家 {sendby} 的传送请求已超时",to)
-        tellMessage(server,info,f"玩家 {to} 超时未回复， 传送请求已被系统取消")
-    
+        tellMessage(server,to,f"来自玩家 {sendby} 的传送请求已超时")
+        tellMessage(server,sendby,f"玩家 {to} 超时未回复， 传送请求已被系统取消")
+
     # 删除传送请求
     deleteReq(sendby)
 
 # 主逻辑（指令逻辑实现）
 
 def show_help(server,info): # 插件帮助，展示可用子命令
-    tellMessage(server,info,f"{Prefix} spawn       传送到世界重生点")
-    tellMessage(server,info,f"{Prefix} back        进行回溯传送")
-    tellMessage(server,info,f"{Prefix} ask <玩家>  请求传送自己到 <玩家> 身边")
-    tellMessage(server,info,f"{Prefix} <yes|no>     同意/拒绝传送到自己身边的请求")
-    tellMessage(server,info,f"{Prefix} help        展示本帮助信息")
-    tellMessage(server,info,f"{Prefix} about       关于")
+    tellMessage(server,info.player,f"{Prefix} spawn - 传送到世界重生点")
+    tellMessage(server,info.player,f"{Prefix} back - 进行回溯传送")
+    tellMessage(server,info.player,f"{Prefix} ask <玩家> - 请求传送自己到 <玩家> 身边")
+    tellMessage(server,info.player,f"{Prefix} <yes/no> - 同意/拒绝传送到自己身边的请求")
+    tellMessage(server,info.player,f"{Prefix} help - 展示本帮助信息")
+    tellMessage(server,info.player,f"{Prefix} about - 关于")
 
 def show_about(server,info): # 展示插件关于信息
-    tellMessage(server,info,'关于信息')
-    tellMessage(server,info,f"当前版本： v{PLUGIN_METADATA['version']}",to=None,tell=True,prefix='§6')
-    tellMessage(server,info,f"一个小小的传送插件， 维护者： Nyaacinth",to=None,tell=True,prefix='§6')
-    tellMessage(server,info,f"在此致谢 dream-rhythm ， 本插件以 tpHelper 的工作基础重写而来",to=None,tell=True,prefix='§6')
+    tellMessage(server,info.player,'关于信息')
+    tellMessage(server,info.player,f"当前版本： v{PLUGIN_METADATA['version']}",tell=True,prefix='§6')
+    tellMessage(server,info.player,f"一个小小的传送插件， 维护者： Nyaacinth",tell=True,prefix='§6')
+    tellMessage(server,info.player,f"在此致谢 dream-rhythm ， 本插件以 tpHelper 为工作基础重写而来",tell=True,prefix='§6')
 
-@new_thread
+@new_thread # 原因：间接引用了 MinecraftDataAPI（getPlayerCoordinate/getPlayerDimension）
 def tp_spawn(server,info): # !!tp spawn
     sec = waitTpForRequest
     if sec!=0:
-        tellMessage(server,info,f"系统已收到指令， 将在 {sec} 秒后传送到世界重生点")
+        tellMessage(server,info.player,f"系统已收到指令， 将在 {sec} 秒后传送到世界重生点")
     while sec>0:
-        tellMessage(server,info,f"即将开始传送， 将在 {sec} 秒后执行")
+        tellMessage(server,info.player,f"即将开始传送， 将在 {sec} 秒后执行")
         time.sleep(1)
         sec -= 1
-    tellMessage(server,info,"传送到世界重生点")
+    tellMessage(server,info.player,"传送到世界重生点")
     coordinate = getPlayerCoordinate(server,player=info.player)
     dimension = getPlayerDimension(server,player=info.player)
     writeLastTpPos(info.player,coordinate.x,coordinate.y,coordinate.z,dimension)
     server.execute(f"/execute in minecraft:overworld run tp {info.player} {readSpawnPos.result[0]} {readSpawnPos.result[1]} {readSpawnPos.result[2]}")
 
-@new_thread
 def tp_yesno(server,info,command): # !! tp yes/no
     req = findReqBy('to',info.player)
     if req==None:
-        tellMessage(server,info,"目前没有待确认的请求")
+        tellMessage(server,info.player,"目前没有待确认的请求")
     else:
         responseTpRequests(info.player,command[1].lower())
 
-@new_thread
+@new_thread # 原因：间接引用了 MinecraftDataAPI（getPlayerCoordinate/getPlayerDimension）
 def tp_back(server,info): # !! tp back
     sec = waitTpForRequest
     pos = getLastTpPos(info.player,True)
     if pos!=[]:
         if sec!=0:
-            tellMessage(server,info,f"系统已收到指令， 将在 {sec} 秒后回溯传送")
+            tellMessage(server,info.player,f"系统已收到指令， 将在 {sec} 秒后回溯传送")
         while sec>0:
-            tellMessage(server,info,f"即将开始传送， 将在 {sec} 秒后执行")
+            tellMessage(server,info.player,f"即将开始传送， 将在 {sec} 秒后执行")
             time.sleep(1)
             sec -= 1
-        tellMessage(server,info,"正在进行回溯传送")
+        tellMessage(server,info.player,"正在进行回溯传送")
         coordinate = getPlayerCoordinate(server,player=info.player)
         dimension = getPlayerDimension(server,player=info.player)
         writeLastTpPos(info.player,coordinate.x,coordinate.y,coordinate.z,dimension)
         server.execute(f"/execute in {pos[3]} run tp {info.player} {pos[0]} {pos[1]} {pos[2]}")
     else:
-        tellMessage(server,info,"您没有可回溯的传送")
+        tellMessage(server,info.player,"您没有可回溯的传送")
 
-@new_thread
+@new_thread # 原因：间接引用了 MinecraftDataAPI（checkPlayerIfOnline）
 def tp_ask(server,info,command): # !! tp ask <playername>
     if checkPlayerIfOnline(server,command[2])==False:
-        tellMessage(server,info,"请求失败，指定的玩家不存在或未上线")
+        tellMessage(server,info.player,"请求失败，指定的玩家不存在或未上线")
     elif findReqBy('sendby',info.player):
-        tellMessage(server,info,"请求失败，请先处理现存的传送请求")
+        tellMessage(server,info.player,"请求失败，请先处理现存的传送请求")
     elif findReqBy('to',command[1]):
-        tellMessage(server,info,"请求失败，对方仍有待处理传送请求")
+        tellMessage(server,info.player,"请求失败，对方仍有待处理传送请求")
     else:
-        createReq(server,info,info.player,command[2])
+        createReq(server,info.player,command[2])
+        handleReq(server,info.player,command[2])
 
-# 外部回调（主逻辑入口）
+# 外部回调处理
 
 def on_load(server, old): # 插件初始化
     server.register_help_message(f'{Prefix} help','显示 Telekinesis 帮助')
@@ -283,7 +281,7 @@ def on_load(server, old): # 插件初始化
     writeReqList([])
     try:
         readSpawnPos()
-    except Exception as e:
+    except Exception:
         server.logger.warn('cannot read level.dat, command "spawn" will not work.')
 
 def on_user_info(server, info): # 接收输入
@@ -306,17 +304,17 @@ def on_user_info(server, info): # 接收输入
             elif command[1].lower()=='back': # !!tp back
                 tp_back(server,info)
             else:
-                tellMessage(server,info,"指令输入有误!")
+                tellMessage(server,info.player,"指令输入有误!")
                 show_help(server,info)
         elif command_lenth ==3: # !!tp ask <playername>
             if command[1].lower()=='ask': # !!tp ask
                 tp_ask(server,info,command)
             else:
-                tellMessage(server,info,"指令输入有误!")
+                tellMessage(server,info.player,"指令输入有误!")
                 show_help(server,info)
         else:
-            tellMessage(server,info,"指令输入有误!")
+            tellMessage(server,info.player,"指令输入有误!")
             show_help(server,info)
-    except Exception as e:
-        tellMessage(server,info,"内部错误")
+    except Exception:
+        tellMessage(server,info.player,"内部错误")
         print(traceback.format_exc())

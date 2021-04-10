@@ -14,6 +14,14 @@
 
 <kbd>!!tp \<yes/no></kbd> 同意/拒绝传送到自己身边的请求
 
+<kbd>!!tp sethome \<传送点名称></kbd> 设置家园传送点
+
+<kbd>!!tp home \<传送点名称></kbd> 传送到家园
+
+<kbd>!!tp homes</kbd> 查看已设置的家园传送点
+
+<kbd>!!tp delhome \<传送点名称></kbd> 删除家园传送点
+
 ### 依赖
 
 [nbt](https://pypi.org/project/NBT)：用于读取存档获取出生点
@@ -23,7 +31,7 @@
 ### Todo
 
 - [x] 原 tpHelper 的关键功能（请求传送 & 回溯传送）
-- [ ] 支持 tp/set/del home 功能，并尝试直接复用来自 Essentials 插件的数据
+- [x] 支持 tp/set/del home 功能
 - [ ] 支持玩家死亡的回溯传送（暂无法实现，参见 [Migrate from MCDR 0.x](https://mcdreforged.readthedocs.io/en/latest/migrate_from_0.x.html#compatibility) ）
 - [ ] 消耗经验的传送
 - [x] 类 Essentials 的延时传送

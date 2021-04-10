@@ -218,7 +218,7 @@ def handleReq(server,sendby,to): # 处理传送请求
             coordinate = getPlayerCoordinate(server,player=sendby)
             dimension = getPlayerDimension(server,player=sendby)
             writeLastTpPos(sendby,coordinate.x,coordinate.y,coordinate.z,dimension)
-            server.execute(f"/tp {sendby} {to}")
+            server.execute(f"tp {sendby} {to}")
             break
         elif req['status']=='no': # 不同意
             tellMessage(server,to,f"已拒绝来自玩家 {sendby} 的传送请求， 取消传送")
@@ -253,7 +253,7 @@ def tp_spawn(server,info): # !!tp spawn
     coordinate = getPlayerCoordinate(server,player=info.player)
     dimension = getPlayerDimension(server,player=info.player)
     writeLastTpPos(info.player,coordinate.x,coordinate.y,coordinate.z,dimension)
-    server.execute(f"/execute in minecraft:overworld run tp {info.player} {readSpawnPos.result[0]} {readSpawnPos.result[1]} {readSpawnPos.result[2]}")
+    server.execute(f"execute in minecraft:overworld run tp {info.player} {readSpawnPos.result[0]} {readSpawnPos.result[1]} {readSpawnPos.result[2]}")
 
 @new_thread # 原因：间接引用了 MinecraftDataAPI（getPlayerCoordinate/getPlayerDimension）
 def tp_sethome(server,info,command=None,replace=False): # !!tp sethome
@@ -279,15 +279,15 @@ def tp_home(server,info,command=None): # !!tp home
     pos = getHomePos(info.player,home)
     if pos!=[]:
         if sec!=0:
-            tellMessage(server,info.player,f"系统已收到指令， 将在 {sec} 秒后传送到家园传送点 {home}")
+            tellMessage(server,info.player,f"系统已收到指令， 将在 {sec} 秒后传送到家园 {home}")
         while sec>0:
             time.sleep(1)
             sec -= 1
-        tellMessage(server,info.player,f"正在传送到家园传送点 {home}")
+        tellMessage(server,info.player,f"正在传送到家园 {home}")
         coordinate = getPlayerCoordinate(server,player=info.player)
         dimension = getPlayerDimension(server,player=info.player)
         writeLastTpPos(info.player,coordinate.x,coordinate.y,coordinate.z,dimension)
-        server.execute(f"/execute in {pos[3]} run tp {info.player} {pos[0]} {pos[1]} {pos[2]}")
+        server.execute(f"execute in {pos[3]} run tp {info.player} {pos[0]} {pos[1]} {pos[2]}")
     else:
         tellMessage(server,info.player,f"家园传送点 {home} 不存在， 请先创建一个")
 
@@ -308,7 +308,7 @@ def tp_homes(server,info): # !!tp homes
     if homes!='':
         tellMessage(server,info.player,f"您设置的家园传送点有：\n\n    {homes}\n")
     else:
-        tellMessage(server,info.player,f"您还没有设置家园传送点， 可以使用 {Prefix} sethome 设定一个")
+        tellMessage(server,info.player,f"您还没有设置过家园传送点， 可以使用 {Prefix} sethome 设定一个")
 
 def tp_yesno(server,info,command): # !!tp yes/no
     req = findReqBy('to',info.player)
@@ -331,7 +331,7 @@ def tp_back(server,info): # !! tp back
         coordinate = getPlayerCoordinate(server,player=info.player)
         dimension = getPlayerDimension(server,player=info.player)
         writeLastTpPos(info.player,coordinate.x,coordinate.y,coordinate.z,dimension)
-        server.execute(f"/execute in {pos[3]} run tp {info.player} {pos[0]} {pos[1]} {pos[2]}")
+        server.execute(f"execute in {pos[3]} run tp {info.player} {pos[0]} {pos[1]} {pos[2]}")
     else:
         tellMessage(server,info.player,"您没有可回溯的传送")
 

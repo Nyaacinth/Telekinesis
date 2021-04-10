@@ -2,7 +2,7 @@
 
 Another MCDR Teleportation Plugin inspired by tpHelper, currently only support Chinese.
 
-If you need English support, please open an issue and let me know about that, Maybe I will do it later.
+If you need English support, please open an issue and let me know about that, maybe I will do it later.
 
 一个小小的传送插件，受 dream-rhythm 的 tpHelper 启发而做，提供传送相关功能支持
 

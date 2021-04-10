@@ -17,7 +17,7 @@ PLUGIN_METADATA = {
     'version': '0.2.1',
     'name': 'Telekinesis',
 	'dependencies': {
-		'minecraft_data_api': '*'
+        'minecraft_data_api': '*'
 	}
 }
 

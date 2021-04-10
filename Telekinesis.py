@@ -14,7 +14,7 @@ class InvalidCommandError(Exception):
 
 PLUGIN_METADATA = {
     'id': 'telekinesis',
-    'version': '0.2.1',
+    'version': '0.2.2',
     'name': 'Telekinesis',
 	'dependencies': {
         'minecraft_data_api': '*'
@@ -61,9 +61,9 @@ def verifyConfigVersion(): # 验证配置文件版本
         return False
 
 def readSpawnPos(): # 读重生点
-    nbtData = nbt.nbt.NBTFile(f"{getConfigKey('level_location')}/level.dat", 'rb')
+    nbtData = nbt.nbt.NBTFile(f"{getConfigKey('level_location')}/level.dat",'rb')
     nbtData = nbtData['Data']
-    readSpawnPos.result = [nbtData['SpawnX'].value, nbtData['SpawnY'].value, nbtData['SpawnZ'].value]
+    readSpawnPos.result = [nbtData['SpawnX'].value,nbtData['SpawnY'].value,nbtData['SpawnZ'].value]
 
 def readReqList(): # 读请求队列
     f = open(f"config/{config_directory}/requests.json",'r',encoding='utf8')
@@ -91,7 +91,7 @@ def readHomeList(): # 读家园传送点列表
 def writeHomeList(data): # 写家园传送点列表
     f = open(f"config/{config_directory}/homes.json",'w',encoding='utf8')
     fcntl.flock(f,fcntl.LOCK_EX)
-    human_readable_data = json.dumps(data,sort_keys=True,indent=4,separators=(',', ':'))
+    human_readable_data = json.dumps(data,sort_keys=True,indent=4,separators=(',',':'))
     f.write(human_readable_data)
     fcntl.flock(f,fcntl.LOCK_UN)
     f.close()
@@ -176,7 +176,7 @@ def tellMessage(server,to,msg,tell=True,prefix=message_prefix): # 向玩家打�
         server.tell(to,msg)
 
 def checkPlayerIfOnline(server,player): # 检查玩家在线情况（由于 MinecraftDataAPI 限制，不可直接在任务执行者线程中使用）
-    amount, limit, players = server.get_plugin_instance('minecraft_data_api').get_server_player_list()
+    amount,limit,players = server.get_plugin_instance('minecraft_data_api').get_server_player_list()
     if player in players:
         return True
     else:
@@ -204,7 +204,6 @@ def createReq(server,sendby,to): # 新增传送请求
     reqlist.append({'sendby':sendby,'to':to,'status':'wait'})
     writeReqList(reqlist)
 
-@new_thread # 原因：耗时长
 def handleReq(server,sendby,to): # 处理传送请求
     # 传送请求文字
     timeout = getConfigKey('teleport_request_timeout')
@@ -256,11 +255,11 @@ def show_help(server,info): # 插件帮助，展示可用子命令
     {Prefix} spawn - 传送到世界重生点
     {Prefix} back - 进行回溯传送
     {Prefix} ask <玩家> - 请求传送自己到 <玩家> 身边
-    {Prefix} <yes/no> - 同意/拒绝传送到自己身边的请求
-    {Prefix} sethome <传送点名称> - 设置家园传送点
-    {Prefix} home <传送点名称> - 传送到家园
+    {Prefix} <yes|no> - 同意/拒绝传送到自己身边的请求
+    {Prefix} sethome [传送点名称] [--replace] - 设置家园传送点
+    {Prefix} home [传送点名称] - 传送到家园
     {Prefix} homes - 查看已设置的家园传送点
-    {Prefix} delhome <传送点名称> - 删除家园传送点
+    {Prefix} delhome [传送点名称] - 删除家园传送点
     {Prefix} help - 展示本帮助信息
     {Prefix} about - 关于
     '''
@@ -370,7 +369,7 @@ def tp_back(server,info): # !! tp back
     else:
         tellMessage(server,info.player,'您没有可回溯的传送')
 
-@new_thread # 原因：间接引用了 MinecraftDataAPI（checkPlayerIfOnline）
+@new_thread # 原因：间接引用了 MinecraftDataAPI（checkPlayerIfOnline）与长耗时函数 handleReq()
 def tp_ask(server,info,command): # !! tp ask <playername>
     if checkPlayerIfOnline(server,command[2])==False:
         tellMessage(server,info.player,'请求失败， 指定的玩家不存在或未上线')
@@ -382,9 +381,9 @@ def tp_ask(server,info,command): # !! tp ask <playername>
         createReq(server,info.player,command[2])
         handleReq(server,info.player,command[2])
 
-# 外部回调处理
+# 外部事件处理
 
-def on_load(server, old): # 插件初始化
+def on_load(server,prev): # 插件初始化
     if not os.path.exists(f"config/{config_directory}"):
         os.mkdir(f"config/{config_directory}")
     if not os.path.exists(f"config/{config_directory}/config.yaml"):
@@ -393,7 +392,6 @@ def on_load(server, old): # 插件初始化
         server.unload_plugin(PLUGIN_METADATA['id'])
         raise RuntimeError('incorrect config file version, please check changelog')
     Prefix = getConfigKey('command_prefix')
-    server.register_help_message(f'{Prefix} help','显示 Telekinesis 帮助')
     if not os.path.exists(f"config/{config_directory}/homes.json"):
         writeHomeList({})
     if not os.path.exists(f"config/{config_directory}/lastPos.json"):
@@ -403,8 +401,9 @@ def on_load(server, old): # 插件初始化
         readSpawnPos()
     except Exception:
         server.logger.warn('cannot read level.dat, command "spawn" will not work.')
+    server.register_help_message(f'{Prefix} help','显示 Telekinesis 帮助')
 
-def on_user_info(server, info): # 接收输入
+def on_user_info(server,info): # 接收输入
     Prefix = getConfigKey('command_prefix')
     command = info.content.split()
     if len(command) == 0 or command[0] != Prefix:

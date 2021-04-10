@@ -1,8 +1,6 @@
 ## Telekinesis
 
-一个小小的传送插件，源于 dream-rhythm 的 tpHelper ，现正重写中。
-
-现阶段功能已完全可以替代 v0.0.2-alpha，若有需求请直接下载仓库中的版本使用
+一个小小的传送插件，源于 dream-rhythm 的 tpHelper ，现在大部分重写并添加了一些功能
 
 ### 功能
 

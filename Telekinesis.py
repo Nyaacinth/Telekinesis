@@ -395,7 +395,7 @@ def on_load(server, old): # 插件初始化
     Prefix = getConfigKey('command_prefix')
     server.register_help_message(f'{Prefix} help','显示 Telekinesis 帮助')
     if not os.path.exists(f"config/{config_directory}/homes.json"):
-        writeHomeList([])
+        writeHomeList({})
     if not os.path.exists(f"config/{config_directory}/lastPos.json"):
         writeLastTpPosList({})
     writeReqList([])

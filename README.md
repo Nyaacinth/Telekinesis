@@ -40,7 +40,7 @@
 
 [nbt](https://pypi.org/project/NBT)：用于读取存档获取出生点
 
-[PyYAML](https://pypi.org/project/PyYAML/)：配置文件
+[PyYAML](https://pypi.org/project/PyYAML)：配置文件
 
 [MinecraftDataAPI](https://github.com/MCDReforged/MinecraftDataAPI)：引用 API
 
@@ -53,4 +53,4 @@
 - [x] 类 Essentials 的延时传送
 - [ ] 支持权限管理
 
-\>ωo
+喵！

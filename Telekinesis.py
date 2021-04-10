@@ -373,11 +373,11 @@ def tp_back(server,info): # !! tp back
 @new_thread # 原因：间接引用了 MinecraftDataAPI（checkPlayerIfOnline）
 def tp_ask(server,info,command): # !! tp ask <playername>
     if checkPlayerIfOnline(server,command[2])==False:
-        tellMessage(server,info.player,'请求失败，指定的玩家不存在或未上线')
+        tellMessage(server,info.player,'请求失败， 指定的玩家不存在或未上线')
     elif findReqBy('sendby',info.player):
-        tellMessage(server,info.player,'请求失败，请先处理现存的传送请求')
+        tellMessage(server,info.player,'请求失败， 请先处理现存的传送请求')
     elif findReqBy('to',command[1]):
-        tellMessage(server,info.player,'请求失败，对方仍有待处理传送请求')
+        tellMessage(server,info.player,'请求失败， 对方仍有待处理传送请求')
     else:
         createReq(server,info.player,command[2])
         handleReq(server,info.player,command[2])

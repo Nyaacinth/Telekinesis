@@ -16,9 +16,13 @@ PLUGIN_METADATA = {
     'id': 'telekinesis',
     'version': '0.2.2',
     'name': 'Telekinesis',
-	'dependencies': {
+    'description': 'Another Teleportation Plugin for MCDR',
+    'author': 'Nyaacinth',
+    'link': 'https://github.com/Nyaacinth/Telekinesis',
+    'dependencies': {
+        'mcdreforged': '>=1.0.0',
         'minecraft_data_api': '*'
-	}
+    }
 }
 
 message_prefix = '§d[Telekinesis] §6' # 消息前缀

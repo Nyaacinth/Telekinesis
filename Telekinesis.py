@@ -98,13 +98,9 @@ def verifyConfigVersion(server): # 验证配置文件版本
     else:
         return data['config_version']
 
-def getPermissionList(userlevel=None,usergroup=None,searched_groups=[]): # 获取用户组可用权限列表
+def getPermissionList(userlevel=None,usergroup=None): # 获取用户组可用权限列表
     if userlevel!=None:
-        usergroup=['guest','user','helper','admin','owner'][userlevel]
-    if not usergroup in searched_groups:
-        searched_groups.append(usergroup)
-    else:
-        raise RuntimeError('Cycled Permission Inheritance Detected, Please Check Your Configuration')
+        usergroup = ['guest','user','helper','admin','owner'][userlevel]
     f = open(f"config/{config_directory}/config.yaml",'r',encoding='utf8')
     data = yaml.safe_load(f)
     f.close
@@ -116,7 +112,7 @@ def getPermissionList(userlevel=None,usergroup=None,searched_groups=[]): # 获�
         for i in range(len(inheritance_usergroups)):
             inheritance_usergroup = inheritance_usergroups[i]
             permission_list.pop(permission_list.index(inheritance_usergroup))
-            permission_list = permission_list + getPermissionList(usergroup=inheritance_usergroup,searched_groups=searched_groups)
+            permission_list.extend(getPermissionList(usergroup=inheritance_usergroup))
     return list(set(permission_list))
 
 def readSpawnPos(): # 读重生点
@@ -344,7 +340,7 @@ def show_about(server,info): # 展示插件关于信息
 def tp_spawn(server,info): # !!tp spawn
     permission = 'spawn'
     if not verifyPermission(server,info.player,permission):
-        tellMessage(server,info.player,f"无法执行操作， 因为您缺少 {permission} 权限，如果您确信这不应发生请联系管理员")
+        tellMessage(server,info.player,f"无法执行操作， 因为缺少 {permission} 权限，如果您确信这不应发生请联系管理员")
         return
     sec = getConfigKey('teleport_hold_time')
     if sec!=0:
@@ -362,7 +358,7 @@ def tp_spawn(server,info): # !!tp spawn
 def tp_sethome(server,info,command=None,replace=False): # !!tp sethome
     permission = 'home_manage'
     if not verifyPermission(server,info.player,permission):
-        tellMessage(server,info.player,f"无法执行操作， 因为您缺少 {permission} 权限，如果您确信这不应发生请联系管理员")
+        tellMessage(server,info.player,f"无法执行操作， 因为缺少 {permission} 权限，如果您确信这不应发生请联系管理员")
         return
     if command!=None and command[2]!=None:
         home=command[2].lower()
@@ -380,7 +376,7 @@ def tp_sethome(server,info,command=None,replace=False): # !!tp sethome
 def tp_home(server,info,command=None): # !!tp home
     permission = 'home'
     if not verifyPermission(server,info.player,permission):
-        tellMessage(server,info.player,f"无法执行操作， 因为您缺少 {permission} 权限，如果您确信这不应发生请联系管理员")
+        tellMessage(server,info.player,f"无法执行操作， 因为缺少 {permission} 权限，如果您确信这不应发生请联系管理员")
         return
     sec = getConfigKey('teleport_hold_time')
     if command!=None and command[2]!=None:
@@ -405,7 +401,7 @@ def tp_home(server,info,command=None): # !!tp home
 def tp_delhome(server,info,command=None): # !!tp delhome
     permission = 'home_manage'
     if not verifyPermission(server,info.player,permission):
-        tellMessage(server,info.player,f"无法执行操作， 因为您缺少 {permission} 权限，如果您确信这不应发生请联系管理员")
+        tellMessage(server,info.player,f"无法执行操作， 因为缺少 {permission} 权限，如果您确信这不应发生请联系管理员")
         return
     if command!=None and command[2]!=None:
         home=command[2].lower()
@@ -421,7 +417,7 @@ def tp_delhome(server,info,command=None): # !!tp delhome
 def tp_homes(server,info): # !!tp homes
     permission = 'home'
     if not verifyPermission(server,info.player,permission):
-        tellMessage(server,info.player,f"无法执行操作， 因为您缺少 {permission} 权限，如果您确信这不应发生请联系管理员")
+        tellMessage(server,info.player,f"无法执行操作， 因为缺少 {permission} 权限，如果您确信这不应发生请联系管理员")
         return
     Prefix = getConfigKey('command_prefix')
     homes = ' '.join(getHomes(info.player))
@@ -433,7 +429,7 @@ def tp_homes(server,info): # !!tp homes
 def tp_yesno(server,info,command): # !!tp yes/no
     permission = 'ask_answer'
     if not verifyPermission(server,info.player,permission):
-        tellMessage(server,info.player,f"无法执行操作， 因为您缺少 {permission} 权限，如果您确信这不应发生请联系管理员")
+        tellMessage(server,info.player,f"无法执行操作， 因为缺少 {permission} 权限，如果您确信这不应发生请联系管理员")
         return
     req = findReqBy('to',info.player)
     if req==None:
@@ -445,7 +441,7 @@ def tp_yesno(server,info,command): # !!tp yes/no
 def tp_back(server,info): # !! tp back
     permission = 'back'
     if not verifyPermission(server,info.player,permission):
-        tellMessage(server,info.player,f"无法执行操作， 因为您缺少 {permission} 权限，如果您确信这不应发生请联系管理员")
+        tellMessage(server,info.player,f"无法执行操作， 因为缺少 {permission} 权限，如果您确信这不应发生请联系管理员")
         return
     sec = getConfigKey('teleport_hold_time')
     pos = getLastTpPos(info.player,True)
@@ -467,7 +463,7 @@ def tp_back(server,info): # !! tp back
 def tp_ask(server,info,command): # !! tp ask <playername>
     permission = 'ask_answer'
     if not verifyPermission(server,info.player,permission):
-        tellMessage(server,info.player,f"无法执行操作， 因为您缺少 {permission} 权限，如果您确信这不应发生请联系管理员")
+        tellMessage(server,info.player,f"无法执行操作， 因为缺少 {permission} 权限，如果您确信这不应发生请联系管理员")
         return
     if checkPlayerIfOnline(server,command[2])==False:
         tellMessage(server,info.player,'请求失败， 指定的玩家不存在或未上线')

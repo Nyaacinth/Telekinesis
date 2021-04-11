@@ -14,7 +14,7 @@ class InvalidCommandError(Exception):
 
 PLUGIN_METADATA = {
     'id': 'telekinesis',
-    'version': '0.2.2',
+    'version': '0.3.0',
     'name': 'Telekinesis',
     'description': 'Another Teleportation Plugin for MCDR',
     'author': 'Nyaacinth',
@@ -29,22 +29,56 @@ message_prefix = '§d[Telekinesis] §6' # 消息前缀
 
 config_directory = 'Telekinesis' # 插件配置文件目录名
 
-config_version = 1
+config_version = 2
+
+valid_config_versions = [1,2]
+
+valid_permissions = ['spawn','back','ask_answer','home','home_manage']
+
+default_config = '''
+config_version: 2
+config:
+    command_prefix: '!!tp'
+    teleport_request_timeout: 30
+    teleport_hold_time: 0
+    level_location: server/world
+permission:
+    guest:
+    - spawn
+    user:
+    - guest
+    - back
+    - ask_answer
+    - home
+    - home_manage
+    helper:
+    - user
+    admin:
+    - helper
+    owner:
+    - all
+'''
 
 # 底层处理
 
 def generateDefaultConfig(): # 生成默认配置文件
-    data = {}
-    data['config_version'] = config_version
-    config = {}
-    config['command_prefix'] = '!!tp'
-    config['teleport_request_timeout'] = 30
-    config['teleport_hold_time'] = 0
-    config['level_location'] = 'server/world'
-    data['config'] = config
     f = open(f"config/{config_directory}/config.yaml",'w',encoding='utf8')
-    yaml.dump(data,f)
+    f.write(default_config.lstrip())
     f.close
+
+def upgradeConfig(server,from_config_version): # 更新配置文件
+    if from_config_version==1:
+        server.logger.info('Upgrading Configuration (1 -> 2)')
+        f = open(f"config/{config_directory}/config.yaml",'r',encoding='utf8')
+        old_data = yaml.safe_load(f)
+        f.close
+        new_data = yaml.safe_load(default_config)
+        new_data['config'] = old_data['config']
+        f = open(f"config/{config_directory}/config.yaml",'w',encoding='utf8')
+        yaml.dump(new_data,f,indent=4,sort_keys=False)
+        f.close
+    if new_data['config_version']!=config_version:
+        upgradeConfig(server,data['config_version'])
 
 def getConfigKey(keyname): # 读取配置键
     f = open(f"config/{config_directory}/config.yaml",'r',encoding='utf8')
@@ -53,13 +87,41 @@ def getConfigKey(keyname): # 读取配置键
     if keyname in data['config'].keys():
         return data['config'][keyname]
     else:
-        raise RuntimeError('invalid config file')
+        raise RuntimeError(f"Invalid Configuration, Missing Key: {keyname}")
 
-def verifyConfigVersion(): # 验证配置文件版本
+def verifyConfigVersion(server): # 验证配置文件版本
     f = open(f"config/{config_directory}/config.yaml",'r',encoding='utf8')
     data = yaml.safe_load(f)
     f.close
     if data['config_version']==config_version:
+        return True
+    else:
+        return data['config_version']
+
+def getPermissionList(userlevel=None,usergroup=None,searched_groups=[]): # 获取用户组可用权限列表
+    if userlevel!=None:
+        usergroup=['guest','user','helper','admin','owner'][userlevel]
+    if not usergroup in searched_groups:
+        searched_groups.append(usergroup)
+    else:
+        raise RuntimeError('Cycled Permission Inheritance Detected, Please Check Your Configuration')
+    f = open(f"config/{config_directory}/config.yaml",'r',encoding='utf8')
+    data = yaml.safe_load(f)
+    f.close
+    if 'all' in data['permission'][usergroup]:
+        return valid_permissions
+    permission_list = data['permission'][usergroup]
+    inheritance_usergroups = list(set(data['permission'].keys()).intersection(set(permission_list)))
+    if inheritance_usergroups!=None:
+        for i in range(len(inheritance_usergroups)):
+            inheritance_usergroup = inheritance_usergroups[i]
+            permission_list.pop(permission_list.index(inheritance_usergroup))
+            permission_list = permission_list + getPermissionList(usergroup=inheritance_usergroup,searched_groups=searched_groups)
+    return list(set(permission_list))
+
+def verifyPermission(server,player,permission):
+    permission_list = getPermissionList(server.get_permission_level(player))
+    if permission in permission_list:
         return True
     else:
         return False
@@ -226,7 +288,7 @@ def handleReq(server,sendby,to): # 处理传送请求
             sec = getConfigKey('teleport_hold_time')
             if sec!=0:
                 tellMessage(server,to,f"已同意来自玩家 {sendby} 的传送请求， 将在 {sec} 秒后开始传送")
-                tellMessage(server,sendby,msg=f"玩家 {to} 已同意传送请求， 将在 {sec} 秒后传送到玩家 {to} 身边")
+                tellMessage(server,sendby,f"玩家 {to} 已同意传送请求， 将在 {sec} 秒后传送到玩家 {to} 身边")
             else:
                 tellMessage(server,to,f"已同意来自玩家 {sendby} 的传送请求， 正在传送")
                 tellMessage(server,sendby,f"玩家 {to} 已同意传送请求， 正在传送")
@@ -280,6 +342,10 @@ def show_about(server,info): # 展示插件关于信息
 
 @new_thread # 原因：间接引用了 MinecraftDataAPI（getPlayerCoordinate/getPlayerDimension）
 def tp_spawn(server,info): # !!tp spawn
+    permission = 'spawn'
+    if not verifyPermission(server,info.player,permission):
+        tellMessage(server,info.player,f"无法执行操作， 因为您缺少 {permission} 权限，如果您确信这不应发生请联系管理员")
+        return
     sec = getConfigKey('teleport_hold_time')
     if sec!=0:
         tellMessage(server,info.player,f"系统已收到指令， 将在 {sec} 秒后传送到世界重生点")
@@ -294,6 +360,10 @@ def tp_spawn(server,info): # !!tp spawn
 
 @new_thread # 原因：间接引用了 MinecraftDataAPI（getPlayerCoordinate/getPlayerDimension）
 def tp_sethome(server,info,command=None,replace=False): # !!tp sethome
+    permission = 'home_manage'
+    if not verifyPermission(server,info.player,permission):
+        tellMessage(server,info.player,f"无法执行操作， 因为您缺少 {permission} 权限，如果您确信这不应发生请联系管理员")
+        return
     if command!=None and command[2]!=None:
         home=command[2].lower()
     else:
@@ -308,6 +378,10 @@ def tp_sethome(server,info,command=None,replace=False): # !!tp sethome
 
 @new_thread # 原因：间接引用了 MinecraftDataAPI（getPlayerCoordinate/getPlayerDimension）
 def tp_home(server,info,command=None): # !!tp home
+    permission = 'home'
+    if not verifyPermission(server,info.player,permission):
+        tellMessage(server,info.player,f"无法执行操作， 因为您缺少 {permission} 权限，如果您确信这不应发生请联系管理员")
+        return
     sec = getConfigKey('teleport_hold_time')
     if command!=None and command[2]!=None:
         home=command[2].lower()
@@ -329,6 +403,10 @@ def tp_home(server,info,command=None): # !!tp home
         tellMessage(server,info.player,f"家园传送点 {home} 不存在， 请先创建一个")
 
 def tp_delhome(server,info,command=None): # !!tp delhome
+    permission = 'home_manage'
+    if not verifyPermission(server,info.player,permission):
+        tellMessage(server,info.player,f"无法执行操作， 因为您缺少 {permission} 权限，如果您确信这不应发生请联系管理员")
+        return
     if command!=None and command[2]!=None:
         home=command[2].lower()
     else:
@@ -341,6 +419,10 @@ def tp_delhome(server,info,command=None): # !!tp delhome
         tellMessage(server,info.player,f"家园传送点 {home} 不存在")
 
 def tp_homes(server,info): # !!tp homes
+    permission = 'home'
+    if not verifyPermission(server,info.player,permission):
+        tellMessage(server,info.player,f"无法执行操作， 因为您缺少 {permission} 权限，如果您确信这不应发生请联系管理员")
+        return
     Prefix = getConfigKey('command_prefix')
     homes = ' '.join(getHomes(info.player))
     if homes!='':
@@ -349,6 +431,10 @@ def tp_homes(server,info): # !!tp homes
         tellMessage(server,info.player,f"您还没有设置过家园传送点， 可以使用 {Prefix} sethome 设定一个")
 
 def tp_yesno(server,info,command): # !!tp yes/no
+    permission = 'ask_answer'
+    if not verifyPermission(server,info.player,permission):
+        tellMessage(server,info.player,f"无法执行操作， 因为您缺少 {permission} 权限，如果您确信这不应发生请联系管理员")
+        return
     req = findReqBy('to',info.player)
     if req==None:
         tellMessage(server,info.player,'目前没有待确认的请求')
@@ -357,6 +443,10 @@ def tp_yesno(server,info,command): # !!tp yes/no
 
 @new_thread # 原因：间接引用了 MinecraftDataAPI（getPlayerCoordinate/getPlayerDimension）
 def tp_back(server,info): # !! tp back
+    permission = 'back'
+    if not verifyPermission(server,info.player,permission):
+        tellMessage(server,info.player,f"无法执行操作， 因为您缺少 {permission} 权限，如果您确信这不应发生请联系管理员")
+        return
     sec = getConfigKey('teleport_hold_time')
     pos = getLastTpPos(info.player,True)
     if pos!=[]:
@@ -375,6 +465,10 @@ def tp_back(server,info): # !! tp back
 
 @new_thread # 原因：间接引用了 MinecraftDataAPI（checkPlayerIfOnline）与长耗时函数 handleReq()
 def tp_ask(server,info,command): # !! tp ask <playername>
+    permission = 'ask_answer'
+    if not verifyPermission(server,info.player,permission):
+        tellMessage(server,info.player,f"无法执行操作， 因为您缺少 {permission} 权限，如果您确信这不应发生请联系管理员")
+        return
     if checkPlayerIfOnline(server,command[2])==False:
         tellMessage(server,info.player,'请求失败， 指定的玩家不存在或未上线')
     elif findReqBy('sendby',info.player):
@@ -391,10 +485,13 @@ def on_load(server,prev): # 插件初始化
     if not os.path.exists(f"config/{config_directory}"):
         os.mkdir(f"config/{config_directory}")
     if not os.path.exists(f"config/{config_directory}/config.yaml"):
+        server.logger.info('Generating Default Configuration, Thanks for Using Telekinesis!')
         generateDefaultConfig()
-    if not verifyConfigVersion():
+    if not verifyConfigVersion(server) is True and verifyConfigVersion(server) in valid_config_versions:
+        upgradeConfig(server,verifyConfigVersion(server))
+    elif not verifyConfigVersion(server):
         server.unload_plugin(PLUGIN_METADATA['id'])
-        raise RuntimeError('incorrect config file version, please check changelog')
+        raise RuntimeError('Invalid Configuration Version, Please Do Not Downgrade')
     Prefix = getConfigKey('command_prefix')
     if not os.path.exists(f"config/{config_directory}/homes.json"):
         writeHomeList({})
@@ -410,7 +507,11 @@ def on_load(server,prev): # 插件初始化
 def on_user_info(server,info): # 接收输入
     Prefix = getConfigKey('command_prefix')
     command = info.content.split()
-    if len(command) == 0 or command[0] != Prefix:
+    if len(command)==0 or command[0]!=Prefix:
+        return
+    info.cancel_send_to_server()
+    if info.is_from_console:
+        server.logger.warn('Sorry, currently use Telekinesis from console is not allowed, please use a client for that')
         return
     command_lenth = len(command)
     try:
@@ -462,5 +563,5 @@ def on_user_info(server,info): # 接收输入
         tellMessage(server,info.player,'指令输入有误!')
         show_help(server,info)
     except:
-        tellMessage(server,info.player,'内部错误')
+        tellMessage(server,info.player,'插件运行时出现了异常， 若需相关信息请检查控制台',tell=False)
         print(traceback.format_exc())

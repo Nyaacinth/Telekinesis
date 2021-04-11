@@ -36,7 +36,7 @@ If you need English support, please open an issue and let me know about that, ma
 
 |键名|默认值|含义|
 |----|----|----|
-|`config_version`|`1`|配置文件版本，请勿修改|
+|`config_version`|`2`|配置文件版本，请勿修改|
 |`command_prefix`|`'!!tp'`|指令前缀|
 |`level_location`|`server/world`|level.dat 所在目录，用于检测出生点|
 |`teleport_hold_time`|`0`|传送执行前等待的时间（单位：秒）|

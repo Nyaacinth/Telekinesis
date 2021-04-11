@@ -119,13 +119,6 @@ def getPermissionList(userlevel=None,usergroup=None,searched_groups=[]): # 获�
             permission_list = permission_list + getPermissionList(usergroup=inheritance_usergroup,searched_groups=searched_groups)
     return list(set(permission_list))
 
-def verifyPermission(server,player,permission):
-    permission_list = getPermissionList(server.get_permission_level(player))
-    if permission in permission_list:
-        return True
-    else:
-        return False
-
 def readSpawnPos(): # 读重生点
     nbtData = nbt.nbt.NBTFile(f"{getConfigKey('level_location')}/level.dat",'rb')
     nbtData = nbtData['Data']
@@ -184,6 +177,13 @@ def getPlayerCoordinate(server,player): # 获取玩家坐标（由于 MinecraftD
 def getPlayerDimension(server,player): # 获取玩家所处维度（由于 MinecraftDataAPI 限制，不可直接在任务执行者线程中使用）
     dimension = server.get_plugin_instance('minecraft_data_api').get_player_info(player,'Dimension')
     return dimension
+
+def verifyPermission(server,player,permission): # 依赖 getPermissionList() ，验证用户是否具有对应权限
+    permission_list = getPermissionList(server.get_permission_level(player))
+    if permission in permission_list:
+        return True
+    else:
+        return False
 
 def findReqBy(tag,player): # 依赖 readReqList() ，查询是否存在请求
     reqlist = readReqList()
@@ -511,7 +511,7 @@ def on_user_info(server,info): # 接收输入
         return
     info.cancel_send_to_server()
     if info.is_from_console:
-        server.logger.warn('Sorry, currently use Telekinesis from console is not allowed, please use a client for that')
+        server.logger.warn('Sorry, currently use Telekinesis in console is not allowed, please use a client for that')
         return
     command_lenth = len(command)
     try:

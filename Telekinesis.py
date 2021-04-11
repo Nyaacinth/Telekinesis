@@ -89,7 +89,7 @@ def getConfigKey(keyname): # 读取配置键
     else:
         raise RuntimeError(f"Invalid Configuration, Missing Key: {keyname}")
 
-def verifyConfigVersion(server): # 验证配置文件版本
+def verifyConfigVersion(): # 验证配置文件版本
     f = open(f"config/{config_directory}/config.yaml",'r',encoding='utf8')
     data = yaml.safe_load(f)
     f.close
@@ -483,9 +483,9 @@ def on_load(server,prev): # 插件初始化
     if not os.path.exists(f"config/{config_directory}/config.yaml"):
         server.logger.info('Generating Default Configuration, Thanks for Using Telekinesis!')
         generateDefaultConfig()
-    if not verifyConfigVersion(server) is True and verifyConfigVersion(server) in valid_config_versions:
-        upgradeConfig(server,verifyConfigVersion(server))
-    elif not verifyConfigVersion(server):
+    if not verifyConfigVersion() is True and verifyConfigVersion() in valid_config_versions:
+        upgradeConfig(server,verifyConfigVersion())
+    elif not verifyConfigVersion():
         server.unload_plugin(PLUGIN_METADATA['id'])
         raise RuntimeError('Invalid Configuration Version, Please Do Not Downgrade')
     Prefix = getConfigKey('command_prefix')

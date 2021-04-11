@@ -416,7 +416,7 @@ def on_user_info(server,info): # 接收输入
     try:
         if command_lenth==1: # !!tp
             show_help(server,info)
-        elif command_lenth==2: # !!tp help/yes/no
+        elif command_lenth==2: # !!tp help/about/yes/no/back/home/homes/sethome/delhome
             if command[1].lower()=='help': # !!tp help
                 show_help(server,info)
             elif command[1].lower()=='about': # !!tp about

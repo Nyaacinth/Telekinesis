@@ -60,7 +60,7 @@ Telekinesis 直接使用对应用户组作为键名，并存在以下权限：
 |`ask_answer`|`!!tp ask <玩家名>`</br>`!!tp <yes\|no>`|
 |`home`|`!!tp home`|
 |`home_manage`|`!!tp sethome [传送点名称] [--replace]`</br>`!!tp delhome [传送点名称]`|
-|`config`|`!!tp config <键> <值>`|
+|`config`|`!!tp config <键>\|--list <值>`|
 
 默认情况下权限分配如下：
 

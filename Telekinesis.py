@@ -64,7 +64,7 @@ permission:
 
 def generateDefaultConfig(): # 生成默认配置文件
     with open(f"config/{PLUGIN_METADATA['name']}/config.yaml",'w',encoding='utf8') as f:
-        write(default_config.lstrip())
+        f.write(default_config.lstrip())
 
 def upgradeConfig(server,from_config_version): # 更新配置文件
     with open(f"config/{PLUGIN_METADATA['name']}/config.yaml",'a+',encoding='utf8') as f:

@@ -41,7 +41,7 @@ If you need English support, please open an issue and let me know about that, ma
 |键名|默认值|数据类型|含义|
 |----|----|----|----|
 |`config_version`|`3`|整型|配置文件版本，请勿修改|
-|`command_prefix`|`'!!tp'`|字符串|指令前缀|
+|`command_prefix`|`!!tp`|字符串|指令前缀|
 |`level_location`|`server/world`|字符串|level.dat 所在目录，用于检测出生点|
 |`teleport_hold_time`|`0`|整型|传送执行前等待的时间（单位：秒）|
 |`teleport_request_timeout`|`30`|整型|传送请求超时的时间，设为 0 永不超时（单位：秒）|

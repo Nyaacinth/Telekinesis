@@ -13,9 +13,9 @@ class InvalidCommandError(Exception):
 # 标识性变量，此处的修改不受支持
 
 PLUGIN_METADATA = {
-    'id': 'telekinesis',
-    'version': '0.3.0',
     'name': 'Telekinesis',
+    'id': 'telekinesis',
+    'version': '0.3.2',
     'description': 'Another Teleportation Plugin for MCDR',
     'author': 'Nyaacinth',
     'link': 'https://github.com/Nyaacinth/Telekinesis',
@@ -27,21 +27,21 @@ PLUGIN_METADATA = {
 
 message_prefix = '§d[Telekinesis] §6' # 消息前缀
 
-config_directory = 'Telekinesis' # 插件配置文件目录名
+config_version = 3 # 当前配置文件版本
 
-config_version = 2
+valid_config_versions = range(1,3) # 有效的配置文件版本范围
 
-valid_config_versions = [1,2]
+valid_permissions = ['spawn','back','ask_answer','home','home_manage','config'] # 有效的权限（暂无校验，仅用于权限设为 all 时的处理）
 
-valid_permissions = ['spawn','back','ask_answer','home','home_manage']
-
-default_config = '''
-config_version: 2
+# 默认配置文件的内容
+default_config = f'''
+config_version: {config_version}
 config:
     command_prefix: '!!tp'
     teleport_request_timeout: 30
     teleport_hold_time: 0
     level_location: server/world
+    void_protect: true
 permission:
     guest:
     - spawn
@@ -55,60 +55,88 @@ permission:
     - user
     admin:
     - helper
+    - config
     owner:
     - all
 '''
 
-# 底层处理
+# 文件处理
 
 def generateDefaultConfig(): # 生成默认配置文件
-    f = open(f"config/{config_directory}/config.yaml",'w',encoding='utf8')
-    f.write(default_config.lstrip())
-    f.close
+    with open(f"config/{PLUGIN_METADATA['name']}/config.yaml",'w',encoding='utf8') as f:
+        write(default_config.lstrip())
 
 def upgradeConfig(server,from_config_version): # 更新配置文件
-    if from_config_version==1:
-        server.logger.info('Upgrading Configuration (1 -> 2)')
-        f = open(f"config/{config_directory}/config.yaml",'r',encoding='utf8')
+    with open(f"config/{PLUGIN_METADATA['name']}/config.yaml",'a+',encoding='utf8') as f:
+        fcntl.flock(f,fcntl.LOCK_EX)
         old_data = yaml.safe_load(f)
-        f.close
         new_data = yaml.safe_load(default_config)
-        new_data['config'] = old_data['config']
-        f = open(f"config/{config_directory}/config.yaml",'w',encoding='utf8')
+        if from_config_version == 1: # 1 -> 2
+            server.logger.info(f"Upgrading Configuration (1 -> {config_version})")
+            new_data['config'].update(old_data['config'])
+        if from_config_version == 2: # 2 -> 3
+            server.logger.info(f"Upgrading Configuration (2 -> {config_version})")
+            new_data['config'].update(old_data['config'])
+            new_data['permission'].update(old_data['permission'])
+        f.truncate()
         yaml.dump(new_data,f,indent=4,sort_keys=False)
-        f.close
-    if new_data['config_version']!=config_version:
-        upgradeConfig(server,data['config_version'])
+
+def getConfigKeyList():
+    with open(f"config/{PLUGIN_METADATA['name']}/config.yaml",'r',encoding='utf8') as f:
+        fcntl.flock(f,fcntl.LOCK_SH)
+        data = yaml.safe_load(f)
+    return data['config'].keys()
 
 def getConfigKey(keyname): # 读取配置键
-    f = open(f"config/{config_directory}/config.yaml",'r',encoding='utf8')
-    data = yaml.safe_load(f)
-    f.close
+    with open(f"config/{PLUGIN_METADATA['name']}/config.yaml",'r',encoding='utf8') as f:
+        fcntl.flock(f,fcntl.LOCK_SH)
+        data = yaml.safe_load(f)
     if keyname in data['config'].keys():
         return data['config'][keyname]
-    else:
-        raise RuntimeError(f"Invalid Configuration, Missing Key: {keyname}")
+    data = yaml.safe_load(default_config)
+    if keyname in data['config'].keys():
+        return data['config'][keyname]
+    return 'unknown_key'
+
+def updateConfigKey(keyname,value): # 更新配置键
+    with open(f"config/{PLUGIN_METADATA['name']}/config.yaml",'r',encoding='utf8') as f:
+        fcntl.flock(f,fcntl.LOCK_SH)
+        data = yaml.safe_load(f)
+    default_data = yaml.safe_load(default_config)
+    if keyname in default_data['config'].keys():
+        if value.isdigit() and isinstance(default_data['config'][keyname],int):
+            data['config'][keyname] = int(value)
+        elif value.lower() == 'true' and isinstance(default_data['config'][keyname],bool):
+            data['config'][keyname] = True
+        elif value.lower() == 'false' and isinstance(default_data['config'][keyname],bool):
+            data['config'][keyname] = False
+        elif isinstance(default_data['config'][keyname],str):
+            data['config'][keyname] = value
+        else:
+            return 'type_error'
+        with open(f"config/{PLUGIN_METADATA['name']}/config.yaml",'w',encoding='utf8') as f:
+            fcntl.flock(f,fcntl.LOCK_EX)
+            yaml.dump(data,f,indent=4,sort_keys=False)
+        return 'succeed'
+    return 'unknown_key'
 
 def verifyConfigVersion(server): # 验证配置文件版本
-    f = open(f"config/{config_directory}/config.yaml",'r',encoding='utf8')
-    data = yaml.safe_load(f)
-    f.close
-    if data['config_version']==config_version:
+    with open(f"config/{PLUGIN_METADATA['name']}/config.yaml",'r',encoding='utf8') as f:
+        data = yaml.safe_load(f)
+    if data['config_version'] == config_version:
         return True
-    else:
-        return data['config_version']
+    return data['config_version']
 
-def getPermissionList(userlevel=None,usergroup=None): # 获取用户组可用权限列表
-    if userlevel!=None:
+def getPermissionList(userlevel=None,usergroup=None,searched_groups=[]): # 获取用户组可用权限列表
+    if userlevel != None:
         usergroup = ['guest','user','helper','admin','owner'][userlevel]
-    f = open(f"config/{config_directory}/config.yaml",'r',encoding='utf8')
-    data = yaml.safe_load(f)
-    f.close
+    with open(f"config/{PLUGIN_METADATA['name']}/config.yaml",'r',encoding='utf8') as f:
+        data = yaml.safe_load(f)
     if 'all' in data['permission'][usergroup]:
         return valid_permissions
     permission_list = data['permission'][usergroup]
     inheritance_usergroups = list(set(data['permission'].keys()).intersection(set(permission_list)))
-    if inheritance_usergroups!=None:
+    if inheritance_usergroups != None:
         for i in range(len(inheritance_usergroups)):
             inheritance_usergroup = inheritance_usergroups[i]
             permission_list.pop(permission_list.index(inheritance_usergroup))
@@ -118,53 +146,43 @@ def getPermissionList(userlevel=None,usergroup=None): # 获取用户组可用权
 def readSpawnPos(): # 读重生点
     nbtData = nbt.nbt.NBTFile(f"{getConfigKey('level_location')}/level.dat",'rb')
     nbtData = nbtData['Data']
-    readSpawnPos.result = [nbtData['SpawnX'].value,nbtData['SpawnY'].value,nbtData['SpawnZ'].value]
+    return [nbtData['SpawnX'].value,nbtData['SpawnY'].value,nbtData['SpawnZ'].value]
 
 def readReqList(): # 读请求队列
-    f = open(f"config/{config_directory}/requests.json",'r',encoding='utf8')
-    fcntl.flock(f,fcntl.LOCK_SH)
-    data = json.load(f)
-    fcntl.flock(f,fcntl.LOCK_UN)
-    f.close()
+    with open(f"config/{PLUGIN_METADATA['name']}/requests.json",'r',encoding='utf8') as f:
+        fcntl.flock(f,fcntl.LOCK_SH)
+        data = json.load(f)
     return data
 
 def writeReqList(data): # 写请求队列
-    f = open(f"config/{config_directory}/requests.json",'w',encoding='utf8')
-    fcntl.flock(f,fcntl.LOCK_EX)
-    json.dump(data,f)
-    fcntl.flock(f,fcntl.LOCK_UN)
-    f.close()
+    with open(f"config/{PLUGIN_METADATA['name']}/requests.json",'w',encoding='utf8') as f:
+        fcntl.flock(f,fcntl.LOCK_EX)
+        json.dump(data,f)
 
 def readHomeList(): # 读家园传送点列表
-    f = open(f"config/{config_directory}/homes.json",'r',encoding='utf8')
-    fcntl.flock(f,fcntl.LOCK_SH)
-    data = json.load(f)
-    fcntl.flock(f,fcntl.LOCK_UN)
-    f.close()
+    with open(f"config/{PLUGIN_METADATA['name']}/homes.json",'r',encoding='utf8') as f:
+        fcntl.flock(f,fcntl.LOCK_SH)
+        data = json.load(f)
     return data
 
 def writeHomeList(data): # 写家园传送点列表
-    f = open(f"config/{config_directory}/homes.json",'w',encoding='utf8')
-    fcntl.flock(f,fcntl.LOCK_EX)
-    human_readable_data = json.dumps(data,sort_keys=True,indent=4,separators=(',',':'))
-    f.write(human_readable_data)
-    fcntl.flock(f,fcntl.LOCK_UN)
-    f.close()
+    with open(f"config/{PLUGIN_METADATA['name']}/homes.json",'w',encoding='utf8') as f:
+        fcntl.flock(f,fcntl.LOCK_EX)
+        data = json.dumps(data,sort_keys=True,indent=4,separators=(',',':'))
+        f.write(data)
 
 def readLastTpPosList(): # 读回溯传送队列
-    f = open(f"config/{config_directory}/lastPos.json",'r',encoding='utf8')
-    fcntl.flock(f,fcntl.LOCK_SH)
-    data = json.load(f)
-    fcntl.flock(f,fcntl.LOCK_UN)
-    f.close()
+    with open(f"config/{PLUGIN_METADATA['name']}/lastPos.json",'r',encoding='utf8') as f:
+        fcntl.flock(f,fcntl.LOCK_SH)
+        data = json.load(f)
     return data
 
 def writeLastTpPosList(data): # 写回溯传送队列
-    f = open(f"config/{config_directory}/lastPos.json",'w',encoding='utf8')
-    fcntl.flock(f,fcntl.LOCK_EX)
-    json.dump(data,f)
-    fcntl.flock(f,fcntl.LOCK_UN)
-    f.close()
+    with open(f"config/{PLUGIN_METADATA['name']}/lastPos.json",'w',encoding='utf8') as f:
+        fcntl.flock(f,fcntl.LOCK_EX)
+        json.dump(data,f)
+
+# 一般处理
 
 def getPlayerCoordinate(server,player): # 获取玩家坐标（由于 MinecraftDataAPI 限制，不可直接在任务执行者线程中使用）
     coordinate = server.get_plugin_instance('minecraft_data_api').get_player_coordinate(player)
@@ -178,8 +196,7 @@ def verifyPermission(server,player,permission): # 依赖 getPermissionList() ，
     permission_list = getPermissionList(server.get_permission_level(player))
     if permission in permission_list:
         return True
-    else:
-        return False
+    return False
 
 def findReqBy(tag,player): # 依赖 readReqList() ，查询是否存在请求
     reqlist = readReqList()
@@ -218,12 +235,11 @@ def getLastTpPos(player,drop=False): # 依赖 readLastTpPosList() ，查询是�
     data = readLastTpPosList()
     if player in data:
         pos = data[player]
-        if drop==True:
+        if drop == True:
             del data[player]
             writeLastTpPosList(data)
         return pos
-    else:
-        return []
+    return []
 
 def writeLastTpPos(player,x,y,z,dimension='minecraft:overworld'): # 依赖 readLastTpPosList() ，写入可回溯的传送
     data = readLastTpPosList()
@@ -241,8 +257,7 @@ def checkPlayerIfOnline(server,player): # 检查玩家在线情况（由于 Mine
     amount,limit,players = server.get_plugin_instance('minecraft_data_api').get_server_player_list()
     if player in players:
         return True
-    else:
-        return False
+    return False
 
 def responseTpRequests(to,answer): # 回复传送请求
     reqlist = readReqList()
@@ -257,7 +272,7 @@ def deleteReq(player): # 删除传送请求
     for idx,tp in enumerate(reqlist):
         if player == tp['sendby']:
             find = idx
-    if find!=-1:
+    if find != -1:
         reqlist.pop(find)
         writeReqList(reqlist)
 
@@ -275,20 +290,20 @@ def handleReq(server,sendby,to): # 处理传送请求
     tellMessage(server,to,f"在 {timeout} 秒内输入 {Prefix} yes 同意， 输入 {Prefix} no 拒绝")
 
     # 等待回复
-    while timeout>0:
+    while timeout > 0:
         req = findReqBy('sendby',sendby)
-        if req['status']=='wait': # 未回复，继续等待
+        if req['status'] == 'wait': # 未回复，继续等待
             time.sleep(1)
             timeout -= 1
-        elif req['status']=='yes': # 同意
+        elif req['status'] == 'yes': # 同意
             sec = getConfigKey('teleport_hold_time')
-            if sec!=0:
+            if sec != 0:
                 tellMessage(server,to,f"已同意来自玩家 {sendby} 的传送请求， 将在 {sec} 秒后开始传送")
                 tellMessage(server,sendby,f"玩家 {to} 已同意传送请求， 将在 {sec} 秒后传送到玩家 {to} 身边")
             else:
                 tellMessage(server,to,f"已同意来自玩家 {sendby} 的传送请求， 正在传送")
                 tellMessage(server,sendby,f"玩家 {to} 已同意传送请求， 正在传送")
-            while sec>0:
+            while sec > 0:
                 time.sleep(1)
                 sec -= 1
             coordinate = getPlayerCoordinate(server,player=sendby)
@@ -296,13 +311,13 @@ def handleReq(server,sendby,to): # 处理传送请求
             writeLastTpPos(sendby,coordinate.x,coordinate.y,coordinate.z,dimension)
             server.execute(f"tp {sendby} {to}")
             break
-        elif req['status']=='no': # 不同意
+        elif req['status'] == 'no': # 不同意
             tellMessage(server,to,f"已拒绝来自玩家 {sendby} 的传送请求， 取消传送")
             tellMessage(server,sendby,f"{to} 拒绝了传送请求")
             break
 
     # 请求等待超时
-    if timeout==0 and getConfigKey('teleport_request_timeout')!=0:
+    if timeout == 0 and getConfigKey('teleport_request_timeout') != 0:
         tellMessage(server,to,f"来自玩家 {sendby} 的传送请求已超时")
         tellMessage(server,sendby,f"玩家 {to} 超时未回复， 传送请求已被系统取消")
 
@@ -322,6 +337,7 @@ def show_help(server,info): # 插件帮助，展示可用子命令
     {Prefix} home [传送点名称] - 传送到家园
     {Prefix} homes - 查看已设置的家园传送点
     {Prefix} delhome [传送点名称] - 删除家园传送点
+    {Prefix} config <键>|--list <值> - 更新/查看设置键
     {Prefix} help - 展示本帮助信息
     {Prefix} about - 关于
     '''
@@ -331,10 +347,35 @@ def show_about(server,info): # 展示插件关于信息
     aboutmsg = f'''
     当前版本： v{PLUGIN_METADATA['version']}
 
-    一个小小的传送插件， 维护者： Nyaacinth
+    一个小小的传送插件， 维护者： {PLUGIN_METADATA['author']}
     在此致谢 dream-rhythm ， 本插件以 tpHelper 为工作基础重写而来
     '''
     tellMessage(server,info.player,'关于信息\n'+aboutmsg)
+
+def tp_config(server,info,command,command_lenth): # !!tp config
+    permission = 'config'
+    if not verifyPermission(server,info.player,permission):
+        tellMessage(server,info.player,f"无法执行操作， 因为缺少 {permission} 权限，如果您确信这不应发生请联系管理员")
+        return
+    if command_lenth == 3:
+        if command[2].lower() == '--list':
+            tellMessage(server,info.player,f"存在以下有效的设置键：\n\n    {' '.join(getConfigKeyList())}\n")
+            return
+        result = getConfigKey(command[2])
+        if result == 'unknown_key':
+            tellMessage(server,info.player,f"无法获取到值， 无效的键 {command[2]}")
+            return
+        tellMessage(server,info.player,f"设置键 {command[2]} 的值现在为 {result}")
+        return
+    elif command[3] != None:
+        status = updateConfigKey(command[2],command[3])
+        if status == 'unknown_key':
+            tellMessage(server,info.player,f"更新设置失败， 无效的键 {command[2]}")
+            return
+        if status == 'type_error':
+            tellMessage(server,info.player,f"更新设置失败， 键 {command[2]} 的值类型不正确")
+            return
+        tellMessage(server,info.player,f"设置键 {command[2]} 的值现在为 {command[3]}")
 
 @new_thread # 原因：间接引用了 MinecraftDataAPI（getPlayerCoordinate/getPlayerDimension）
 def tp_spawn(server,info): # !!tp spawn
@@ -342,17 +383,18 @@ def tp_spawn(server,info): # !!tp spawn
     if not verifyPermission(server,info.player,permission):
         tellMessage(server,info.player,f"无法执行操作， 因为缺少 {permission} 权限，如果您确信这不应发生请联系管理员")
         return
+    pos = readSpawnPos()
     sec = getConfigKey('teleport_hold_time')
-    if sec!=0:
+    if sec != 0:
         tellMessage(server,info.player,f"系统已收到指令， 将在 {sec} 秒后传送到世界重生点")
-    while sec>0:
+    while sec > 0:
         time.sleep(1)
         sec -= 1
     tellMessage(server,info.player,"传送到世界重生点")
     coordinate = getPlayerCoordinate(server,player=info.player)
     dimension = getPlayerDimension(server,player=info.player)
     writeLastTpPos(info.player,coordinate.x,coordinate.y,coordinate.z,dimension)
-    server.execute(f"execute in minecraft:overworld run tp {info.player} {readSpawnPos.result[0]} {readSpawnPos.result[1]} {readSpawnPos.result[2]}")
+    server.execute(f"execute in minecraft:overworld run tp {info.player} {pos[0]} {pos[1]} {pos[2]}")
 
 @new_thread # 原因：间接引用了 MinecraftDataAPI（getPlayerCoordinate/getPlayerDimension）
 def tp_sethome(server,info,command=None,replace=False): # !!tp sethome
@@ -360,11 +402,11 @@ def tp_sethome(server,info,command=None,replace=False): # !!tp sethome
     if not verifyPermission(server,info.player,permission):
         tellMessage(server,info.player,f"无法执行操作， 因为缺少 {permission} 权限，如果您确信这不应发生请联系管理员")
         return
-    if command!=None and command[2]!=None:
+    if command != None and command[2] != None:
         home=command[2].lower()
     else:
         home='home'
-    if getHomePos(info.player,home)==[] or replace==True:
+    if getHomePos(info.player,home) == [] or replace == True:
         coordinate = getPlayerCoordinate(server,player=info.player)
         dimension = getPlayerDimension(server,player=info.player)
         tellMessage(server,info.player,f"设置家园传送点 {home}")
@@ -379,15 +421,15 @@ def tp_home(server,info,command=None): # !!tp home
         tellMessage(server,info.player,f"无法执行操作， 因为缺少 {permission} 权限，如果您确信这不应发生请联系管理员")
         return
     sec = getConfigKey('teleport_hold_time')
-    if command!=None and command[2]!=None:
+    if command != None and command[2] != None:
         home=command[2].lower()
     else:
         home='home'
     pos = getHomePos(info.player,home)
-    if pos!=[]:
-        if sec!=0:
+    if pos != []:
+        if sec != 0:
             tellMessage(server,info.player,f"系统已收到指令， 将在 {sec} 秒后传送到家园 {home}")
-        while sec>0:
+        while sec > 0:
             time.sleep(1)
             sec -= 1
         tellMessage(server,info.player,f"正在传送到家园 {home}")
@@ -403,7 +445,7 @@ def tp_delhome(server,info,command=None): # !!tp delhome
     if not verifyPermission(server,info.player,permission):
         tellMessage(server,info.player,f"无法执行操作， 因为缺少 {permission} 权限，如果您确信这不应发生请联系管理员")
         return
-    if command!=None and command[2]!=None:
+    if command != None and command[2] != None:
         home=command[2].lower()
     else:
         home='home'
@@ -421,7 +463,7 @@ def tp_homes(server,info): # !!tp homes
         return
     Prefix = getConfigKey('command_prefix')
     homes = ' '.join(getHomes(info.player))
-    if homes!='':
+    if homes != '':
         tellMessage(server,info.player,f"您设置的家园传送点有：\n\n    {homes}\n")
     else:
         tellMessage(server,info.player,f"您还没有设置过家园传送点， 可以使用 {Prefix} sethome 设定一个")
@@ -432,7 +474,7 @@ def tp_yesno(server,info,command): # !!tp yes/no
         tellMessage(server,info.player,f"无法执行操作， 因为缺少 {permission} 权限，如果您确信这不应发生请联系管理员")
         return
     req = findReqBy('to',info.player)
-    if req==None:
+    if req == None:
         tellMessage(server,info.player,'目前没有待确认的请求')
     else:
         responseTpRequests(info.player,command[1].lower())
@@ -444,14 +486,18 @@ def tp_back(server,info): # !! tp back
         tellMessage(server,info.player,f"无法执行操作， 因为缺少 {permission} 权限，如果您确信这不应发生请联系管理员")
         return
     sec = getConfigKey('teleport_hold_time')
-    pos = getLastTpPos(info.player,True)
-    if pos!=[]:
-        if sec!=0:
+    pos = getLastTpPos(info.player)
+    if pos != []:
+        if sec != 0:
             tellMessage(server,info.player,f"系统已收到指令， 将在 {sec} 秒后回溯传送")
-        while sec>0:
+        while sec > 0:
             time.sleep(1)
             sec -= 1
         tellMessage(server,info.player,'正在进行回溯传送')
+        if getConfigKey('void_protect') is True and pos[1] < 1:
+            tellMessage(server,info.player,f"无法执行操作， 目标已在虚空中 (x={round(pos[0],2)} y={round(pos[1],2)} z={round(pos[2],2)})")
+            return
+        pos = getLastTpPos(info.player,True)
         coordinate = getPlayerCoordinate(server,player=info.player)
         dimension = getPlayerDimension(server,player=info.player)
         writeLastTpPos(info.player,coordinate.x,coordinate.y,coordinate.z,dimension)
@@ -465,7 +511,7 @@ def tp_ask(server,info,command): # !! tp ask <playername>
     if not verifyPermission(server,info.player,permission):
         tellMessage(server,info.player,f"无法执行操作， 因为缺少 {permission} 权限，如果您确信这不应发生请联系管理员")
         return
-    if checkPlayerIfOnline(server,command[2])==False:
+    if checkPlayerIfOnline(server,command[2]) == False:
         tellMessage(server,info.player,'请求失败， 指定的玩家不存在或未上线')
     elif findReqBy('sendby',info.player):
         tellMessage(server,info.player,'请求失败， 请先处理现存的传送请求')
@@ -478,10 +524,10 @@ def tp_ask(server,info,command): # !! tp ask <playername>
 # 外部事件处理
 
 def on_load(server,prev): # 插件初始化
-    if not os.path.exists(f"config/{config_directory}"):
-        os.mkdir(f"config/{config_directory}")
-    if not os.path.exists(f"config/{config_directory}/config.yaml"):
-        server.logger.info('Generating Default Configuration, Thanks for Using Telekinesis!')
+    if not os.path.exists(f"config/{PLUGIN_METADATA['name']}"):
+        os.mkdir(f"config/{PLUGIN_METADATA['name']}")
+    if not os.path.exists(f"config/{PLUGIN_METADATA['name']}/config.yaml"):
+        server.logger.info(f"Generating Default Configuration, Thanks for Using {PLUGIN_METADATA['name']}!")
         generateDefaultConfig()
     if not verifyConfigVersion(server) is True and verifyConfigVersion(server) in valid_config_versions:
         upgradeConfig(server,verifyConfigVersion(server))
@@ -489,68 +535,68 @@ def on_load(server,prev): # 插件初始化
         server.unload_plugin(PLUGIN_METADATA['id'])
         raise RuntimeError('Invalid Configuration Version, Please Do Not Downgrade')
     Prefix = getConfigKey('command_prefix')
-    if not os.path.exists(f"config/{config_directory}/homes.json"):
+    if not os.path.exists(f"config/{PLUGIN_METADATA['name']}/homes.json"):
         writeHomeList({})
-    if not os.path.exists(f"config/{config_directory}/lastPos.json"):
+    if not os.path.exists(f"config/{PLUGIN_METADATA['name']}/lastPos.json"):
         writeLastTpPosList({})
     writeReqList([])
-    try:
-        readSpawnPos()
-    except Exception:
-        server.logger.warn('cannot read level.dat, command "spawn" will not work.')
-    server.register_help_message(f'{Prefix} help','显示 Telekinesis 帮助')
+    server.register_help_message(f"{Prefix} help",f"显示 {PLUGIN_METADATA['name']} 帮助")
 
 def on_user_info(server,info): # 接收输入
     Prefix = getConfigKey('command_prefix')
     command = info.content.split()
-    if len(command)==0 or command[0]!=Prefix:
+    if len(command) == 0 or command[0] != Prefix:
         return
     info.cancel_send_to_server()
     if info.is_from_console:
-        server.logger.warn('Sorry, currently use Telekinesis in console is not allowed, please use a client for that')
+        server.logger.warn(f"Sorry, currently use {PLUGIN_METADATA['name']} in console is not allowed, please use a client instead")
         return
     command_lenth = len(command)
     try:
-        if command_lenth==1: # !!tp
+        if command_lenth == 1: # !!tp
             show_help(server,info)
-        elif command_lenth==2: # !!tp help/about/yes/no/back/home/homes/sethome/delhome
-            if command[1].lower()=='help': # !!tp help
+        elif command_lenth == 2: # !!tp help/about/yes/no/back/home/homes/sethome/delhome
+            if command[1].lower() == 'help': # !!tp help
                 show_help(server,info)
-            elif command[1].lower()=='about': # !!tp about
+            elif command[1].lower() == 'about': # !!tp about
                 show_about(server,info)
-            elif command[1].lower()=='spawn': # !!tp spawn
+            elif command[1].lower() == 'spawn': # !!tp spawn
                 tp_spawn(server,info)
             elif command[1].lower() in ['yes','no']: # !!tp yes/no
                 tp_yesno(server,info,command)
-            elif command[1].lower()=='back': # !!tp back
+            elif command[1].lower() == 'back': # !!tp back
                 tp_back(server,info)
-            elif command[1].lower()=='home': # !!tp home
+            elif command[1].lower() == 'home': # !!tp home
                 tp_home(server,info)
-            elif command[1].lower()=='homes': # !!tp homes
+            elif command[1].lower() == 'homes': # !!tp homes
                 tp_homes(server,info)
-            elif command[1].lower()=='sethome': # !!tp sethome
+            elif command[1].lower() == 'sethome': # !!tp sethome
                 tp_sethome(server,info)
-            elif command[1].lower()=='delhome': # !!tp delhome
+            elif command[1].lower() == 'delhome': # !!tp delhome
                 tp_delhome(server,info)
             else:
                 raise InvalidCommandError
-        elif command_lenth==3: # !!tp ask/home/sethome/delhome
-            if command[1].lower()=='ask': # !!tp ask <playername>
+        elif command_lenth == 3: # !!tp ask/home/sethome/delhome
+            if command[1].lower() == 'ask': # !!tp ask <playername>
                 tp_ask(server,info,command)
-            elif command[1].lower()=='home': # !!tp home <home>
+            elif command[1].lower() == 'home': # !!tp home <home>
                 tp_home(server,info,command)
-            elif command[1].lower()=='sethome': # !!tp sethome <home> or !!tp sethome --replace
-                if command[2].lower()=='--replace':
+            elif command[1].lower() == 'sethome': # !!tp sethome <home> or !!tp sethome --replace
+                if command[2].lower() == '--replace':
                     tp_sethome(server,info,command=None,replace=True)
                 else:
                     tp_sethome(server,info,command)
-            elif command[1].lower()=='delhome': # !!tp delhome <home>
+            elif command[1].lower() == 'delhome': # !!tp delhome <home>
                 tp_delhome(server,info,command)
+            if command[1].lower() == 'config': # !!tp config <key>|--list
+                tp_config(server,info,command,command_lenth)
             else:
                 raise InvalidCommandError
-        elif command_lenth==4: # !!tp sethome
-            if command[1].lower()=='sethome' and command[3].lower()=='--replace': # !!tp sethome <home> --replace
+        elif command_lenth == 4: # !!tp sethome
+            if command[1].lower() == 'sethome' and command[3].lower() == '--replace': # !!tp sethome <home> --replace
                 tp_sethome(server,info,command,replace=True)
+            if command[1].lower() == 'config': # !!tp config <key> <value>
+                tp_config(server,info,command,command_lenth)
             else:
                 raise InvalidCommandError
         else:
@@ -559,5 +605,5 @@ def on_user_info(server,info): # 接收输入
         tellMessage(server,info.player,'指令输入有误!')
         show_help(server,info)
     except:
-        tellMessage(server,info.player,'插件运行时出现了异常， 若需相关信息请检查控制台',tell=False)
+        tellMessage(server,info.player,'插件运行时出现了异常， 相关错误信息请检查控制台',tell=False)
         print(traceback.format_exc())

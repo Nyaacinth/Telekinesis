@@ -24,6 +24,8 @@ If you need English support, please open an issue and let me know about that, ma
 
 <kbd>!!tp delhome [传送点名称]</kbd> 删除家园传送点
 
+<kbd>!!tp config \<键>|--list \<值></kbd> 查看/更新设置或列出设置键
+
 <kbd>!!tp help</kbd> 查看帮助信息
 
 <kbd>!!tp about</kbd> 查看关于
@@ -34,13 +36,16 @@ If you need English support, please open an issue and let me know about that, ma
 
 #### 基础配置
 
-|键名|默认值|含义|
-|----|----|----|
-|`config_version`|`1`|配置文件版本，请勿修改|
-|`command_prefix`|`'!!tp'`|指令前缀|
-|`level_location`|`server/world`|level.dat 所在目录，用于检测出生点|
-|`teleport_hold_time`|`0`|传送执行前等待的时间（单位：秒）|
-|`teleport_request_timeout`|`30`|传送请求超时的时间，设为 0 永不超时（单位：秒）|
+提示：你也可以在游戏内使用 `!!tp config <键> <值>` 来更新设置，更新的设置将立即生效
+
+|键名|默认值|数据类型|含义|
+|----|----|----|----|
+|`config_version`|`1`|整型|配置文件版本，请勿修改|
+|`command_prefix`|`'!!tp'`|字符串|指令前缀|
+|`level_location`|`server/world`|字符串|level.dat 所在目录，用于检测出生点|
+|`teleport_hold_time`|`0`|整型|传送执行前等待的时间（单位：秒）|
+|`teleport_request_timeout`|`30`|整型|传送请求超时的时间，设为 0 永不超时（单位：秒）|
+|`void_protect`|`true`|布尔值|是否防止玩家 back 时落入虚空|
 
 #### 权限配置
 
@@ -55,6 +60,7 @@ Telekinesis 直接使用对应用户组作为键名，并存在以下权限：
 |`ask_answer`|`!!tp ask <玩家名>`</br>`!!tp <yes\|no>`|
 |`home`|`!!tp home`|
 |`home_manage`|`!!tp sethome [传送点名称] [--replace]`</br>`!!tp delhome [传送点名称]`|
+|`config`|`!!tp config <键> <值>`|
 
 默认情况下权限分配如下：
 
@@ -63,14 +69,15 @@ Telekinesis 直接使用对应用户组作为键名，并存在以下权限：
 |guest|`spawn`|
 |user|`back`</br>`ask_answer`</br>`home`</br>`home_manage`</br>+ guest 用户组的权限|
 |helper|user 用户组的权限|
-|admin|helper 用户组的权限|
+|admin|`config`</br>+ helper 用户组的权限|
 |owner|所有权限|
 
 用户组键下的权限直接以列表形式写出，如有需求修改即可
 
 - 特殊说明：
     - 若在权限列表中写入另一用户组的名称，将直接继承其权限
-    - `all` 代表所有权限
+    - 要使某一权限组不具备任何权限，请将其值设为空列表（eg. `guest: []`）
+    - 权限列表中填入 `all` 代表赋予该用户组和所有继承它的组所有权限
 
 ### 依赖
 

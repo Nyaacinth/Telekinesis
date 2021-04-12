@@ -120,7 +120,7 @@ def updateConfigKey(keyname,value): # 更新配置键
         return 'succeed'
     return 'unknown_key'
 
-def verifyConfigVersion(server): # 验证配置文件版本
+def verifyConfigVersion(): # 验证配置文件版本
     with open(f"config/{PLUGIN_METADATA['name']}/config.yaml",'r',encoding='utf8') as f:
         data = yaml.safe_load(f)
     if data['config_version'] == config_version:
@@ -529,9 +529,9 @@ def on_load(server,prev): # 插件初始化
     if not os.path.exists(f"config/{PLUGIN_METADATA['name']}/config.yaml"):
         server.logger.info(f"Generating Default Configuration, Thanks for Using {PLUGIN_METADATA['name']}!")
         generateDefaultConfig()
-    if not verifyConfigVersion(server) is True and verifyConfigVersion(server) in valid_config_versions:
-        upgradeConfig(server,verifyConfigVersion(server))
-    elif not verifyConfigVersion(server):
+    if not verifyConfigVersion() is True and verifyConfigVersion() in valid_config_versions:
+        upgradeConfig(server,verifyConfigVersion())
+    elif not verifyConfigVersion():
         server.unload_plugin(PLUGIN_METADATA['id'])
         raise RuntimeError('Invalid Configuration Version, Please Do Not Downgrade')
     Prefix = getConfigKey('command_prefix')

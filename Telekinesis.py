@@ -78,7 +78,7 @@ def upgradeConfig(server,from_config_version): # 更新配置文件
         yaml.dump(new_data,f,indent=4,sort_keys=False)
         f.close
     if new_data['config_version']!=config_version:
-        upgradeConfig(server,data['config_version'])
+        upgradeConfig(server,new_data['config_version'])
 
 def getConfigKey(keyname): # 读取配置键
     f = open(f"config/{config_directory}/config.yaml",'r',encoding='utf8')

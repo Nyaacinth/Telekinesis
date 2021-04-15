@@ -4,7 +4,7 @@ import json
 import yaml
 import os
 import nbt
-import fcntl
+import portalocker
 import traceback
 from mcdreforged.api.decorator import new_thread
 class InvalidCommandError(Exception):
@@ -68,7 +68,7 @@ def generateDefaultConfig(): # 生成默认配置文件
 
 def upgradeConfig(server,from_config_version): # 更新配置文件
     with open(f"config/{PLUGIN_METADATA['name']}/config.yaml",'a+',encoding='utf8') as f:
-        fcntl.flock(f,fcntl.LOCK_EX)
+        portalocker.lock(f, portalocker.LOCK_EX)
         old_data = yaml.safe_load(f)
         new_data = yaml.safe_load(default_config)
         if from_config_version == 1: # 1 -> 2
@@ -83,13 +83,13 @@ def upgradeConfig(server,from_config_version): # 更新配置文件
 
 def getConfigKeyList():
     with open(f"config/{PLUGIN_METADATA['name']}/config.yaml",'r',encoding='utf8') as f:
-        fcntl.flock(f,fcntl.LOCK_SH)
+        portalocker.lock(f, portalocker.LOCK_SH)
         data = yaml.safe_load(f)
     return data['config'].keys()
 
 def getConfigKey(keyname): # 读取配置键
     with open(f"config/{PLUGIN_METADATA['name']}/config.yaml",'r',encoding='utf8') as f:
-        fcntl.flock(f,fcntl.LOCK_SH)
+        portalocker.lock(f, portalocker.LOCK_SH)
         data = yaml.safe_load(f)
     if keyname in data['config'].keys():
         return data['config'][keyname]
@@ -100,7 +100,7 @@ def getConfigKey(keyname): # 读取配置键
 
 def updateConfigKey(keyname,value): # 更新配置键
     with open(f"config/{PLUGIN_METADATA['name']}/config.yaml",'r',encoding='utf8') as f:
-        fcntl.flock(f,fcntl.LOCK_SH)
+        portalocker.lock(f, portalocker.LOCK_SH)
         data = yaml.safe_load(f)
     default_data = yaml.safe_load(default_config)
     if keyname in default_data['config'].keys():
@@ -115,7 +115,7 @@ def updateConfigKey(keyname,value): # 更新配置键
         else:
             return 'type_error'
         with open(f"config/{PLUGIN_METADATA['name']}/config.yaml",'w',encoding='utf8') as f:
-            fcntl.flock(f,fcntl.LOCK_EX)
+            portalocker.lock(f, portalocker.LOCK_EX)
             yaml.dump(data,f,indent=4,sort_keys=False)
         return 'succeed'
     return 'unknown_key'
@@ -150,36 +150,36 @@ def readSpawnPos(): # 读重生点
 
 def readReqList(): # 读请求队列
     with open(f"config/{PLUGIN_METADATA['name']}/requests.json",'r',encoding='utf8') as f:
-        fcntl.flock(f,fcntl.LOCK_SH)
+        portalocker.lock(f, portalocker.LOCK_SH)
         data = json.load(f)
     return data
 
 def writeReqList(data): # 写请求队列
     with open(f"config/{PLUGIN_METADATA['name']}/requests.json",'w',encoding='utf8') as f:
-        fcntl.flock(f,fcntl.LOCK_EX)
+        portalocker.lock(f, portalocker.LOCK_EX)
         json.dump(data,f)
 
 def readHomeList(): # 读家园传送点列表
     with open(f"config/{PLUGIN_METADATA['name']}/homes.json",'r',encoding='utf8') as f:
-        fcntl.flock(f,fcntl.LOCK_SH)
+        portalocker.lock(f, portalocker.LOCK_SH)
         data = json.load(f)
     return data
 
 def writeHomeList(data): # 写家园传送点列表
     with open(f"config/{PLUGIN_METADATA['name']}/homes.json",'w',encoding='utf8') as f:
-        fcntl.flock(f,fcntl.LOCK_EX)
+        portalocker.lock(f, portalocker.LOCK_EX)
         data = json.dumps(data,sort_keys=True,indent=4,separators=(',',':'))
         f.write(data)
 
 def readLastTpPosList(): # 读回溯传送队列
     with open(f"config/{PLUGIN_METADATA['name']}/lastPos.json",'r',encoding='utf8') as f:
-        fcntl.flock(f,fcntl.LOCK_SH)
+        portalocker.lock(f, portalocker.LOCK_SH)
         data = json.load(f)
     return data
 
 def writeLastTpPosList(data): # 写回溯传送队列
     with open(f"config/{PLUGIN_METADATA['name']}/lastPos.json",'w',encoding='utf8') as f:
-        fcntl.flock(f,fcntl.LOCK_EX)
+        portalocker.lock(f, portalocker.LOCK_EX)
         json.dump(data,f)
 
 # 一般处理
@@ -254,7 +254,7 @@ def tellMessage(server,to,msg,tell=True,prefix=message_prefix): # 向玩家打�
         server.tell(to,msg)
 
 def checkPlayerIfOnline(server,player): # 检查玩家在线情况（由于 MinecraftDataAPI 限制，不可直接在任务执行者线程中使用）
-    amount,limit,players = server.get_plugin_instance('minecraft_data_api').get_server_player_list()
+    players = server.get_plugin_instance('minecraft_data_api').get_server_player_list()[2]
     if player in players:
         return True
     return False

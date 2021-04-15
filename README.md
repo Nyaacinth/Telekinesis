@@ -81,9 +81,11 @@ Telekinesis 直接使用对应用户组作为键名，并存在以下权限：
 
 ### 依赖
 
-[nbt](https://pypi.org/project/NBT)：用于读取存档获取出生点
+[NBT](https://pypi.org/project/NBT)：用于读取存档获取出生点
 
 [PyYAML](https://pypi.org/project/PyYAML)：配置文件
+
+[portalocker](https://pypi.org/project/portalocker)：跨平台文件锁
 
 [MinecraftDataAPI](https://github.com/MCDReforged/MinecraftDataAPI)：引用 API
 

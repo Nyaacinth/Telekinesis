@@ -588,7 +588,7 @@ def on_user_info(server,info): # 接收输入
                     tp_sethome(server,info,command)
             elif command[1].lower() == 'delhome': # !!tp delhome <home>
                 tp_delhome(server,info,command)
-            if command[1].lower() == 'config': # !!tp config <key>|--list
+            elif command[1].lower() == 'config': # !!tp config <key>|--list
                 tp_config(server,info,command,command_lenth)
             else:
                 raise InvalidCommandError

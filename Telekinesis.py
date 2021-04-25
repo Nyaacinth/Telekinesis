@@ -15,7 +15,7 @@ class InvalidCommandError(Exception):
 PLUGIN_METADATA = {
     'name': 'Telekinesis',
     'id': 'telekinesis',
-    'version': '0.3.2',
+    'version': '0.4.0',
     'description': 'Another Teleportation Plugin for MCDR',
     'author': 'Nyaacinth',
     'link': 'https://github.com/Nyaacinth/Telekinesis',
@@ -31,7 +31,9 @@ config_version = 3 # 当前配置文件版本
 
 valid_config_versions = range(1,3) # 有效的配置文件版本范围
 
-valid_permissions = ['spawn','back','ask_answer','home','home_manage','config'] # 有效的权限（暂无校验，仅用于权限设为 all 时的处理）
+valid_usergroups = ['guest','user','helper','admin','owner'] # 实用户组
+
+valid_permissions = ['spawn','back','ask_answer','home','home_manage','config','permission_manage'] # 有效的权限
 
 # 默认配置文件的内容
 default_config = f'''
@@ -81,7 +83,7 @@ def upgradeConfig(server,from_config_version): # 更新配置文件
         f.truncate()
         yaml.dump(new_data,f,indent=4,sort_keys=False)
 
-def getConfigKeyList():
+def getConfigKeyList(): # 获取配置键列表
     with open(f"config/{PLUGIN_METADATA['name']}/config.yaml",'r',encoding='utf8') as f:
         portalocker.lock(f, portalocker.LOCK_SH)
         data = yaml.safe_load(f)
@@ -120,6 +122,26 @@ def updateConfigKey(keyname,value): # 更新配置键
         return 'succeed'
     return 'unknown_key'
 
+def updatePermissionList(usergroup,permission_list,add=False,remove=False): # 更新权限列表
+    with open(f"config/{PLUGIN_METADATA['name']}/config.yaml",'r',encoding='utf8') as f:
+        portalocker.lock(f, portalocker.LOCK_EX)
+        data = yaml.safe_load(f)
+    local_valid_permissions = valid_permissions + list(data['permission'].keys()) + ['all']
+    if remove is True and not set(permission_list).issubset(set(data['permission'][usergroup])):
+        return 'invalid_permissions'
+    elif not remove is True and not set(permission_list).issubset(set(local_valid_permissions)):
+        return 'invalid_permissions'
+    if remove is True and set(permission_list).issubset(set(data['permission'][usergroup])):
+        permission_list = list(set(data['permission'][usergroup]) - set(permission_list))
+    if not usergroup in data['permission'].keys():
+        data['permission'][usergroup] = {}
+    if add is True:
+        permission_list = data['permission'][usergroup] + permission_list
+    data['permission'][usergroup] = list(set(permission_list))
+    with open(f"config/{PLUGIN_METADATA['name']}/config.yaml",'w',encoding='utf8') as f:
+        yaml.dump(data,f,indent=4,sort_keys=False)
+    return 'succeed'
+
 def verifyConfigVersion(): # 验证配置文件版本
     with open(f"config/{PLUGIN_METADATA['name']}/config.yaml",'r',encoding='utf8') as f:
         data = yaml.safe_load(f)
@@ -127,20 +149,43 @@ def verifyConfigVersion(): # 验证配置文件版本
         return True
     return data['config_version']
 
-def getPermissionList(userlevel=None,usergroup=None,searched_groups=[]): # 获取用户组可用权限列表
-    if userlevel != None:
-        usergroup = ['guest','user','helper','admin','owner'][userlevel]
+def getUsergroups(): # 获取存在的用户组
     with open(f"config/{PLUGIN_METADATA['name']}/config.yaml",'r',encoding='utf8') as f:
+        portalocker.lock(f, portalocker.LOCK_SH)
         data = yaml.safe_load(f)
-    if 'all' in data['permission'][usergroup]:
-        return valid_permissions
+    return list(data['permission'].keys())
+
+def deleteUsergroup(usergroup): # 删除用户组
+    with open(f"config/{PLUGIN_METADATA['name']}/config.yaml",'r',encoding='utf8') as f:
+        portalocker.lock(f, portalocker.LOCK_SH)
+        data = yaml.safe_load(f)
+    if usergroup in valid_usergroups:
+        return 'in_valid_usergroups'
+    if not usergroup in data['permission'].keys():
+        return 'unknown_usergroup'
+    data['permission'].pop(usergroup)
+    with open(f"config/{PLUGIN_METADATA['name']}/config.yaml",'w',encoding='utf8') as f:
+        yaml.dump(data,f,indent=4,sort_keys=False)
+    return 'succeed'
+
+def getPermissionList(userlevel=None,usergroup=None,recursion=True): # 获取用户组可用权限列表
+    if userlevel != None:
+        usergroup = valid_usergroups[userlevel]
+    with open(f"config/{PLUGIN_METADATA['name']}/config.yaml",'r',encoding='utf8') as f:
+        portalocker.lock(f, portalocker.LOCK_SH)
+        data = yaml.safe_load(f)
+    if not usergroup in data['permission'].keys():
+        return 'invalid_usergroup'
     permission_list = data['permission'][usergroup]
-    inheritance_usergroups = list(set(data['permission'].keys()).intersection(set(permission_list)))
-    if inheritance_usergroups != None:
-        for i in range(len(inheritance_usergroups)):
-            inheritance_usergroup = inheritance_usergroups[i]
-            permission_list.pop(permission_list.index(inheritance_usergroup))
-            permission_list.extend(getPermissionList(usergroup=inheritance_usergroup))
+    if recursion is True:
+        if 'all' in data['permission'][usergroup]:
+            return valid_permissions
+        inheritance_usergroups = list(set(data['permission'].keys()).intersection(set(permission_list)))
+        if inheritance_usergroups != None:
+            for i in range(len(inheritance_usergroups)):
+                inheritance_usergroup = inheritance_usergroups[i]
+                permission_list.pop(permission_list.index(inheritance_usergroup))
+                permission_list.extend(getPermissionList(usergroup=inheritance_usergroup))
     return list(set(permission_list))
 
 def readSpawnPos(): # 读重生点
@@ -338,6 +383,8 @@ def show_help(server,info): # 插件帮助，展示可用子命令
     {Prefix} homes - 查看已设置的家园传送点
     {Prefix} delhome [传送点名称] - 删除家园传送点
     {Prefix} config <键>|--list <值> - 更新/查看设置键
+    {Prefix} permission <query|add|set|remove> [用户组] [权限名|用户组名]
+      - 更新/查询/删除用户组权限、修改用户组间继承关系或删除虚用户组
     {Prefix} help - 展示本帮助信息
     {Prefix} about - 关于
     '''
@@ -352,12 +399,12 @@ def show_about(server,info): # 展示插件关于信息
     '''
     tellMessage(server,info.player,'关于信息\n'+aboutmsg)
 
-def tp_config(server,info,command,command_lenth): # !!tp config
+def tp_config(server,info,command,command_length): # !!tp config
     permission = 'config'
     if not verifyPermission(server,info.player,permission):
         tellMessage(server,info.player,f"无法执行操作， 因为缺少 {permission} 权限，如果您确信这不应发生请联系管理员")
         return
-    if command_lenth == 3:
+    if command_length == 3:
         if command[2].lower() == '--list':
             tellMessage(server,info.player,f"存在以下有效的设置键：\n\n    {' '.join(getConfigKeyList())}\n")
             return
@@ -376,6 +423,56 @@ def tp_config(server,info,command,command_lenth): # !!tp config
             tellMessage(server,info.player,f"更新设置失败， 键 {command[2]} 的值类型不正确")
             return
         tellMessage(server,info.player,f"设置键 {command[2]} 的值现在为 {command[3]}")
+
+def tp_permission(server,info,command,command_length): # !!tp permission
+    permission = 'permission_manage'
+    if not verifyPermission(server,info.player,permission):
+        tellMessage(server,info.player,f"无法执行操作， 因为缺少 {permission} 权限，如果您确信这不应发生请联系管理员")
+        return
+    if command_length == 3 and command[2].lower() == 'query':
+        custom_usergroups = list(set(getUsergroups()) - set(valid_usergroups))
+        if custom_usergroups == []:
+            tellMessage(server,info.player,f"查询存在的用户组\n\n当前存在以下实用户组：\n\n    {' '.join(valid_usergroups)}\n\n且不存在虚用户组\n")
+            return
+        tellMessage(server,info.player,f"查询存在的用户组\n\n当前存在以下实用户组：\n\n    {' '.join(valid_usergroups)}\n\n与以下虚用户组：\n\n    {' '.join(custom_usergroups)}\n")
+        return
+    elif command_length == 4 and command[2].lower() == 'remove':
+        status = deleteUsergroup(usergroup=command[3])
+        if status == 'unknown_usergroup':
+            tellMessage(server,info.player,f"无法删除用户组 {command[3]} ， 因为其不存在")
+            return
+        elif status == 'in_valid_usergroups':
+            tellMessage(server,info.player,f"无法删除用户组 {command[3]} ， 因其为实用户组")
+            return
+        tellMessage(server,info.player,f"虚用户组 {command[3]} 已被删除")
+    permission_list = getPermissionList(userlevel=None,usergroup=command[3],recursion=False)
+    if command_length == 4 and command[2].lower() == 'query':
+        if permission_list == []:
+            tellMessage(server,info.player,f"用户组 {command[3]} 现在没有任何权限")
+            return
+        tellMessage(server,info.player,f"用户组 {command[3]} 具有以下权限：\n\n    {' '.join(permission_list)}\n")
+    elif command_length >= 5 and command[2].lower() == 'add':
+        status = updatePermissionList(usergroup=command[3],permission_list=command[4::],add=True)
+        if status == 'invalid_permissions':
+            tellMessage(server,info.player,'更新权限失败， 参数中存在无效的权限')
+            return
+        tellMessage(server,info.player,f"用户组 {command[3]} 现有权限 {' '.join(getPermissionList(userlevel=None,usergroup=command[3],recursion=False))}")
+    elif command_length >= 5 and command[2].lower() == 'set':
+        status = updatePermissionList(usergroup=command[3],permission_list=command[4::],add=False)
+        if status == 'invalid_permissions':
+            tellMessage(server,info.player,'更新权限失败， 参数中存在无效的权限')
+            return
+        tellMessage(server,info.player,f"用户组 {command[3]} 现有权限 {' '.join(getPermissionList(userlevel=None,usergroup=command[3],recursion=False))}")
+    elif command_length >= 5 and command[2].lower() == 'remove':
+        status = updatePermissionList(usergroup=command[3],permission_list=command[4::],add=False,remove=True)
+        if status == 'invalid_permissions':
+            tellMessage(server,info.player,'更新权限失败， 参数中存在无效的权限')
+            return
+        permission_list = getPermissionList(userlevel=None,usergroup=command[3],recursion=False)
+        if permission_list == []:
+            tellMessage(server,info.player,f"用户组 {command[3]} 现在没有任何权限")
+            return
+        tellMessage(server,info.player,f"用户组 {command[3]} 现有权限 {' '.join(permission_list)}")
 
 @new_thread # 原因：间接引用了 MinecraftDataAPI（getPlayerCoordinate/getPlayerDimension）
 def tp_spawn(server,info): # !!tp spawn
@@ -551,11 +648,11 @@ def on_user_info(server,info): # 接收输入
     if info.is_from_console:
         server.logger.warn(f"Sorry, currently use {PLUGIN_METADATA['name']} in console is not allowed, please use a client instead")
         return
-    command_lenth = len(command)
+    command_length = len(command)
     try:
-        if command_lenth == 1: # !!tp
+        if command_length == 1: # !!tp
             show_help(server,info)
-        elif command_lenth == 2: # !!tp help/about/yes/no/back/home/homes/sethome/delhome
+        elif command_length == 2: # !!tp help/about/yes/no/back/home/homes/sethome/delhome
             if command[1].lower() == 'help': # !!tp help
                 show_help(server,info)
             elif command[1].lower() == 'about': # !!tp about
@@ -576,7 +673,7 @@ def on_user_info(server,info): # 接收输入
                 tp_delhome(server,info)
             else:
                 raise InvalidCommandError
-        elif command_lenth == 3: # !!tp ask/home/sethome/delhome
+        elif command_length == 3: # !!tp ask/home/sethome/delhome/config/permission
             if command[1].lower() == 'ask': # !!tp ask <playername>
                 tp_ask(server,info,command)
             elif command[1].lower() == 'home': # !!tp home <home>
@@ -589,14 +686,23 @@ def on_user_info(server,info): # 接收输入
             elif command[1].lower() == 'delhome': # !!tp delhome <home>
                 tp_delhome(server,info,command)
             elif command[1].lower() == 'config': # !!tp config <key>|--list
-                tp_config(server,info,command,command_lenth)
+                tp_config(server,info,command,command_length)
+            elif command[1].lower() == 'permission' and command[2].lower() == 'query': # !!tp permission query <usergroup>
+                tp_permission(server,info,command,command_length)
             else:
                 raise InvalidCommandError
-        elif command_lenth == 4: # !!tp sethome
+        elif command_length == 4: # !!tp sethome/config/permission
             if command[1].lower() == 'sethome' and command[3].lower() == '--replace': # !!tp sethome <home> --replace
                 tp_sethome(server,info,command,replace=True)
-            if command[1].lower() == 'config': # !!tp config <key> <value>
-                tp_config(server,info,command,command_lenth)
+            elif command[1].lower() == 'config': # !!tp config <key> <value>
+                tp_config(server,info,command,command_length)
+            elif command[1].lower() == 'permission' and command[2].lower() in ['query','remove']: # !!tp permission <query|remove> <usergroup> [...]
+                tp_permission(server,info,command,command_length)
+            else:
+                raise InvalidCommandError
+        elif command_length >= 5: # !!tp permission
+            if command[1].lower() == 'permission' and command[2].lower() in ['add','set','remove']: # !!tp permission <add|set|remove> <usergroup> ...
+                tp_permission(server,info,command,command_length)
             else:
                 raise InvalidCommandError
         else:

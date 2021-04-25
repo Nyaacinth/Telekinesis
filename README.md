@@ -26,6 +26,12 @@ If you need English support, please open an issue and let me know about that, ma
 
 <kbd>!!tp config \<键>|--list \<值></kbd> 查看/更新设置或列出设置键
 
+<kbd>!!tp permission \<query|add|set|remove> [用户组] [权限名|用户组名]</kbd>
+
+- 更新/查询/删除用户组权限、修改用户组间继承关系或删除虚用户组
+
+- 总之是与权限管理相关的
+
 <kbd>!!tp help</kbd> 查看帮助信息
 
 <kbd>!!tp about</kbd> 查看关于
@@ -61,6 +67,7 @@ Telekinesis 直接使用对应用户组作为键名，并存在以下权限：
 |`home`|`!!tp home`|
 |`home_manage`|`!!tp sethome [传送点名称] [--replace]`</br>`!!tp delhome [传送点名称]`|
 |`config`|`!!tp config <键>\|--list <值>`|
+|`permission_manage`|`!!tp permission ...`|
 
 默认情况下权限分配如下：
 
@@ -74,7 +81,9 @@ Telekinesis 直接使用对应用户组作为键名，并存在以下权限：
 
 用户组键下的权限直接以列表形式写出，如有需求修改即可
 
-- 特殊说明：
+您也可以使用 `!!tp permission ...` 指令在游戏内修改权限，修改将立即生效
+
+- 文件特殊说明：
     - 若在权限列表中写入另一用户组的名称，将直接继承其权限
     - 要使某一权限组不具备任何权限，请将其值设为空列表（eg. `guest: []`）
     - 权限列表中填入 `all` 代表赋予该用户组和所有继承它的组所有权限
@@ -94,7 +103,7 @@ Telekinesis 直接使用对应用户组作为键名，并存在以下权限：
 - [x] 原 tpHelper 的关键功能（请求传送 & 回溯传送）
 - [x] 支持 tp/set/del home 功能
 - [ ] 支持玩家死亡的回溯传送（暂无法实现，参见 [Migrate from MCDR 0.x](https://mcdreforged.readthedocs.io/zh_CN/latest/migrate_from_0.x.html?highlight=on_death_message#compatibility) ）
-- [ ] 消耗经验的传送
+- [ ] ~~消耗经验的传送~~（不可实现，因为 Mojang 限制玩家数据不可通过指令修改）
 - [x] 类 Essentials 的延时传送
 - [x] 支持权限管理
 

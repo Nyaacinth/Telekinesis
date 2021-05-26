@@ -46,12 +46,15 @@ If you need English support, please open an issue and let me know about that, ma
 
 |键名|默认值|数据类型|含义|
 |----|----|----|----|
-|`config_version`|`3`|整型|配置文件版本，请勿修改|
+|`config_version`|`4`|整型|配置文件版本，请勿修改|
 |`command_prefix`|`!!tp`|字符串|指令前缀|
 |`level_location`|`server/world`|字符串|level.dat 所在目录，用于检测出生点|
 |`teleport_hold_time`|`0`|整型|传送执行前等待的时间（单位：秒）|
 |`teleport_request_timeout`|`30`|整型|传送请求超时的时间，设为 0 永不超时（单位：秒）|
 |`void_protect`|`true`|布尔值|是否防止玩家 back 时落入虚空|
+|`detect_player_by`|`uuid`<sup>[1]</sup>|字符串|玩家辨识依据（ `uuid` 或 `name` ）
+
+[1]： 若从配置文件版本 3 及以下的版本升级则自动设为 `name` 以维持兼容性
 
 #### 权限配置
 
@@ -90,20 +93,23 @@ Telekinesis 直接使用对应用户组作为键名，并存在以下权限：
 
 ### 依赖
 
+[MCDReforged](https://github.com/Fallen-Breath/MCDReforged) (>=1.0.0)：一切的源头
+
 [NBT](https://pypi.org/project/NBT)：用于读取存档获取出生点
 
 [PyYAML](https://pypi.org/project/PyYAML)：配置文件
 
 [portalocker](https://pypi.org/project/portalocker)：跨平台文件锁
 
-[MinecraftDataAPI](https://github.com/MCDReforged/MinecraftDataAPI)：引用 API
+[MinecraftDataAPI](https://github.com/MCDReforged/MinecraftDataAPI) (>=1.3.0)：引用 API
 
 ### Todo
 
 - [x] 原 tpHelper 的关键功能（请求传送 & 回溯传送）
 - [x] 支持 tp/set/del home 功能
-- [ ] 支持玩家死亡的回溯传送（暂无法实现，参见 [Migrate from MCDR 0.x](https://mcdreforged.readthedocs.io/zh_CN/latest/migrate_from_0.x.html?highlight=on_death_message#compatibility) ）
-- [ ] ~~消耗经验的传送~~（不可实现，因为 Mojang 限制玩家数据不可通过指令修改）
+- [ ] 支持玩家死亡的回溯传送（正在尝试基于 [MoreAPIs](https://github.com/HuajiMUR233/MoreAPIs) 实现）
+- [ ] 基于 UUID 辨识玩家（正在尝试基于 [MinecraftDataAPI](https://github.com/MCDReforged/MinecraftDataAPI) (>=1.3.0) 实现）
+- [ ] ~~消耗经验的传送~~（暂不可实现， Mojang 限制玩家数据不可通过指令修改）
 - [x] 类 Essentials 的延时传送
 - [x] 支持权限管理
 

@@ -15,21 +15,21 @@ class InvalidCommandError(Exception):
 PLUGIN_METADATA = {
     'name': 'Telekinesis',
     'id': 'telekinesis',
-    'version': '0.4.0',
+    'version': '0.4.1',
     'description': 'Another Teleportation Plugin for MCDR',
     'author': 'Nyaacinth',
     'link': 'https://github.com/Nyaacinth/Telekinesis',
     'dependencies': {
         'mcdreforged': '>=1.0.0',
-        'minecraft_data_api': '*'
+        'minecraft_data_api': '>=1.3.0'
     }
 }
 
 message_prefix = '§d[Telekinesis] §6' # 消息前缀
 
-config_version = 3 # 当前配置文件版本
+config_version = 4 # 当前配置文件版本
 
-valid_config_versions = range(1,3) # 有效的配置文件版本范围
+valid_config_versions = range(1,4+1) # 有效的配置文件版本范围
 
 valid_usergroups = ['guest','user','helper','admin','owner'] # 实用户组
 
@@ -44,6 +44,7 @@ config:
     teleport_hold_time: 0
     level_location: server/world
     void_protect: true
+    detect_player_by: uuid
 permission:
     guest:
     - spawn
@@ -68,20 +69,24 @@ def generateDefaultConfig(): # 生成默认配置文件
     with open(f"config/{PLUGIN_METADATA['name']}/config.yaml",'w',encoding='utf8') as f:
         f.write(default_config.lstrip())
 
-def upgradeConfig(server,from_config_version): # 更新配置文件
-    with open(f"config/{PLUGIN_METADATA['name']}/config.yaml",'a+',encoding='utf8') as f:
-        portalocker.lock(f, portalocker.LOCK_EX)
+def upgradeConfig(server): # 更新配置文件
+    _processed = False
+    with open(f"config/{PLUGIN_METADATA['name']}/config.yaml",'r',encoding='utf8') as f:
+        portalocker.lock(f, portalocker.LOCK_SH)
         old_data = yaml.safe_load(f)
         new_data = yaml.safe_load(default_config)
-        if from_config_version == 1: # 1 -> 2
-            server.logger.info(f"Upgrading Configuration (1 -> {config_version})")
-            new_data['config'].update(old_data['config'])
-        if from_config_version == 2: # 2 -> 3
-            server.logger.info(f"Upgrading Configuration (2 -> {config_version})")
-            new_data['config'].update(old_data['config'])
+    from_config_version = old_data['config_version']
+    if from_config_version in range(1, 3+1):
+        new_data['config'].update(old_data['config'])
+        if 'permission' in old_data:
             new_data['permission'].update(old_data['permission'])
-        f.truncate()
-        yaml.dump(new_data,f,indent=4,sort_keys=False)
+        new_data['config']['detect_player_by'] = 'name'
+        _processed = True
+    if _processed == True:
+        server.logger.info(f"Upgrading Configuration ({from_config_version} -> {config_version})")
+        with open(f"config/{PLUGIN_METADATA['name']}/config.yaml",'w',encoding='utf8') as f:
+            portalocker.lock(f, portalocker.LOCK_EX)
+            yaml.dump(new_data,f,indent=4,sort_keys=False)
 
 def getConfigKeyList(): # 获取配置键列表
     with open(f"config/{PLUGIN_METADATA['name']}/config.yaml",'r',encoding='utf8') as f:
@@ -626,9 +631,9 @@ def on_load(server,prev): # 插件初始化
     if not os.path.exists(f"config/{PLUGIN_METADATA['name']}/config.yaml"):
         server.logger.info(f"Generating Default Configuration, Thanks for Using {PLUGIN_METADATA['name']}!")
         generateDefaultConfig()
-    if not verifyConfigVersion() is True and verifyConfigVersion() in valid_config_versions:
-        upgradeConfig(server,verifyConfigVersion())
-    elif not verifyConfigVersion():
+    if verifyConfigVersion() != True and verifyConfigVersion() in valid_config_versions:
+        upgradeConfig(server)
+    elif verifyConfigVersion() != True:
         server.unload_plugin(PLUGIN_METADATA['id'])
         raise RuntimeError('Invalid Configuration Version, Please Do Not Downgrade')
     Prefix = getConfigKey('command_prefix')

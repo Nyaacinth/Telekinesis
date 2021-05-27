@@ -15,7 +15,7 @@ class InvalidCommandError(Exception):
 PLUGIN_METADATA = {
     'name': 'Telekinesis',
     'id': 'telekinesis',
-    'version': '0.4.1',
+    'version': '0.4.2',
     'description': 'Another Teleportation Plugin for MCDR',
     'author': 'Nyaacinth',
     'link': 'https://github.com/Nyaacinth/Telekinesis',
@@ -27,9 +27,9 @@ PLUGIN_METADATA = {
 
 message_prefix = '§d[Telekinesis] §6' # 消息前缀
 
-config_version = 4 # 当前配置文件版本
+config_version = 5 # 当前配置文件版本
 
-valid_config_versions = range(1,4+1) # 有效的配置文件版本范围
+valid_config_versions = range(1,5+1) # 有效的配置文件版本范围
 
 valid_usergroups = ['guest','user','helper','admin','owner'] # 实用户组
 
@@ -44,7 +44,7 @@ config:
     teleport_hold_time: 0
     level_location: server/world
     void_protect: true
-    detect_player_by: uuid
+    player_id_type: uuid
 permission:
     guest:
     - spawn
@@ -74,19 +74,23 @@ def upgradeConfig(server): # 更新配置文件
     with open(f"config/{PLUGIN_METADATA['name']}/config.yaml",'r',encoding='utf8') as f:
         portalocker.lock(f, portalocker.LOCK_SH)
         old_data = yaml.safe_load(f)
-        new_data = yaml.safe_load(default_config)
-    from_config_version = old_data['config_version']
+        data = yaml.safe_load(default_config)
+        data.update(old_data)
+        from_config_version = old_data['config_version']
     if from_config_version in range(1, 3+1):
-        new_data['config'].update(old_data['config'])
-        if 'permission' in old_data:
-            new_data['permission'].update(old_data['permission'])
-        new_data['config']['detect_player_by'] = 'name'
+        data['config']['player_id_type'] = 'name'
+        _processed = True
+    if from_config_version == 4:
+        if 'detect_player_by' in old_data['config']:
+            del data['config']['detect_player_by']
+        data['config']['player_id_type'] = 'name'
         _processed = True
     if _processed == True:
+        data['config_version'] = config_version
         server.logger.info(f"Upgrading Configuration ({from_config_version} -> {config_version})")
         with open(f"config/{PLUGIN_METADATA['name']}/config.yaml",'w',encoding='utf8') as f:
             portalocker.lock(f, portalocker.LOCK_EX)
-            yaml.dump(new_data,f,indent=4,sort_keys=False)
+            yaml.dump(data,f,indent=4,sort_keys=False)
 
 def getConfigKeyList(): # 获取配置键列表
     with open(f"config/{PLUGIN_METADATA['name']}/config.yaml",'r',encoding='utf8') as f:
@@ -234,6 +238,22 @@ def writeLastTpPosList(data): # 写回溯传送队列
 
 # 一般处理
 
+def getPlayerUUID(server,playername): # 获取玩家 UUID
+    uuid_int_array = server.get_plugin_instance('minecraft_data_api').get_player_info(playername,'UUID')
+    if not uuid_int_array:
+        return
+    uuid_raw = ''
+    for i in uuid_int_array:
+        if i < 0:
+            i = 4294967296 + i
+        uuid_raw = uuid_raw + format(abs(i), 'x')
+    uuid = list(uuid_raw)
+    uuid.insert(8, '-')
+    uuid.insert(13, '-')
+    uuid.insert(18, '-')
+    uuid.insert(23, '-')
+    return ''.join(uuid)
+
 def getPlayerCoordinate(server,player): # 获取玩家坐标（由于 MinecraftDataAPI 限制，不可直接在任务执行者线程中使用）
     coordinate = server.get_plugin_instance('minecraft_data_api').get_player_coordinate(player)
     return coordinate
@@ -255,33 +275,43 @@ def findReqBy(tag,player): # 依赖 readReqList() ，查询是否存在请求
             return tp
     return None
 
-def deleteHomePos(player,home): # 依赖 readHomeList() ，删除家园传送点
+def deleteHomePos(server,player,home): # 依赖 readHomeList() ，删除家园传送点
+    if getConfigKey('player_id_type') == 'uuid':
+        player = getPlayerUUID(server,player)
     data = readHomeList()
     if player in data.keys() and home in data[player].keys():
         data[player].pop(home)
     writeHomeList(data)
 
-def writeHomePos(player,home,x,y,z,dimension='minecraft:overworld'): # 依赖 readHomeList() ，设定家园传送点
+def writeHomePos(server,player,home,x,y,z,dimension='minecraft:overworld'): # 依赖 readHomeList() ，设定家园传送点
+    if getConfigKey('player_id_type') == 'uuid':
+        player = getPlayerUUID(server,player)
     data = readHomeList()
     if not player in data.keys():
         data[player] = {}
     data[player][home] = [x,y,z,dimension]
     writeHomeList(data)
 
-def getHomePos(player,home): # 依赖 readHomeList() ，查询是否存在家园传送点
+def getHomePos(server,player,home): # 依赖 readHomeList() ，查询是否存在家园传送点
+    if getConfigKey('player_id_type') == 'uuid':
+        player = getPlayerUUID(server,player)
     data = readHomeList()
     if player in data.keys() and home in data[player].keys():
         return data[player][home]
     return []
 
-def getHomes(player): # 依赖 readHomeList() ，获取家园传送点列表
+def getHomes(server,player): # 依赖 readHomeList() ，获取家园传送点列表
+    if getConfigKey('player_id_type') == 'uuid':
+        player = getPlayerUUID(server,player)
     data = readHomeList()
     if player in data.keys():
         homes = [ key for key,value in data[player].items() ]
         return homes
     return []
 
-def getLastTpPos(player,drop=False): # 依赖 readLastTpPosList() ，查询是否存在可回溯的传送
+def getLastTpPos(server,player,drop=False): # 依赖 readLastTpPosList() ，查询是否存在可回溯的传送
+    if getConfigKey('player_id_type') == 'uuid':
+        player = getPlayerUUID(server,player)
     data = readLastTpPosList()
     if player in data:
         pos = data[player]
@@ -291,7 +321,9 @@ def getLastTpPos(player,drop=False): # 依赖 readLastTpPosList() ，查询是�
         return pos
     return []
 
-def writeLastTpPos(player,x,y,z,dimension='minecraft:overworld'): # 依赖 readLastTpPosList() ，写入可回溯的传送
+def writeLastTpPos(server,player,x,y,z,dimension='minecraft:overworld'): # 依赖 readLastTpPosList() ，写入可回溯的传送
+    if getConfigKey('player_id_type') == 'uuid':
+        player = getPlayerUUID(server,player)
     data = readLastTpPosList()
     data[player] = [x,y,z,dimension]
     writeLastTpPosList(data)
@@ -358,7 +390,7 @@ def handleReq(server,sendby,to): # 处理传送请求
                 sec -= 1
             coordinate = getPlayerCoordinate(server,player=sendby)
             dimension = getPlayerDimension(server,player=sendby)
-            writeLastTpPos(sendby,coordinate.x,coordinate.y,coordinate.z,dimension)
+            writeLastTpPos(server,sendby,coordinate.x,coordinate.y,coordinate.z,dimension)
             server.execute(f"tp {sendby} {to}")
             break
         elif req['status'] == 'no': # 不同意
@@ -495,7 +527,7 @@ def tp_spawn(server,info): # !!tp spawn
     tellMessage(server,info.player,"传送到世界重生点")
     coordinate = getPlayerCoordinate(server,player=info.player)
     dimension = getPlayerDimension(server,player=info.player)
-    writeLastTpPos(info.player,coordinate.x,coordinate.y,coordinate.z,dimension)
+    writeLastTpPos(server,info.player,coordinate.x,coordinate.y,coordinate.z,dimension)
     server.execute(f"execute in minecraft:overworld run tp {info.player} {pos[0]} {pos[1]} {pos[2]}")
 
 @new_thread # 原因：间接引用了 MinecraftDataAPI（getPlayerCoordinate/getPlayerDimension）
@@ -508,11 +540,11 @@ def tp_sethome(server,info,command=None,replace=False): # !!tp sethome
         home=command[2].lower()
     else:
         home='home'
-    if getHomePos(info.player,home) == [] or replace == True:
+    if getHomePos(server,info.player,home) == [] or replace == True:
         coordinate = getPlayerCoordinate(server,player=info.player)
         dimension = getPlayerDimension(server,player=info.player)
         tellMessage(server,info.player,f"设置家园传送点 {home}")
-        writeHomePos(info.player,home,coordinate.x,coordinate.y,coordinate.z,dimension)
+        writeHomePos(server,info.player,home,coordinate.x,coordinate.y,coordinate.z,dimension)
     else:
         tellMessage(server,info.player,f"已存在家园传送点 {home} ， 若要覆盖请先删除或增加参数 --replace")
 
@@ -527,7 +559,7 @@ def tp_home(server,info,command=None): # !!tp home
         home=command[2].lower()
     else:
         home='home'
-    pos = getHomePos(info.player,home)
+    pos = getHomePos(server,info.player,home)
     if pos != []:
         if sec != 0:
             tellMessage(server,info.player,f"系统已收到指令， 将在 {sec} 秒后传送到家园 {home}")
@@ -537,7 +569,7 @@ def tp_home(server,info,command=None): # !!tp home
         tellMessage(server,info.player,f"正在传送到家园 {home}")
         coordinate = getPlayerCoordinate(server,player=info.player)
         dimension = getPlayerDimension(server,player=info.player)
-        writeLastTpPos(info.player,coordinate.x,coordinate.y,coordinate.z,dimension)
+        writeLastTpPos(server,info.player,coordinate.x,coordinate.y,coordinate.z,dimension)
         server.execute(f"execute in {pos[3]} run tp {info.player} {pos[0]} {pos[1]} {pos[2]}")
     else:
         tellMessage(server,info.player,f"家园传送点 {home} 不存在， 请先创建一个")
@@ -551,10 +583,10 @@ def tp_delhome(server,info,command=None): # !!tp delhome
         home=command[2].lower()
     else:
         home='home'
-    homes = getHomes(info.player)
+    homes = getHomes(server,info.player)
     if home in homes:
         tellMessage(server,info.player,f"正在删除家园传送点 {home}")
-        deleteHomePos(info.player,home)
+        deleteHomePos(server,info.player,home)
     else:
         tellMessage(server,info.player,f"家园传送点 {home} 不存在")
 
@@ -564,7 +596,7 @@ def tp_homes(server,info): # !!tp homes
         tellMessage(server,info.player,f"无法执行操作， 因为缺少 {permission} 权限，如果您确信这不应发生请联系管理员")
         return
     Prefix = getConfigKey('command_prefix')
-    homes = ' '.join(getHomes(info.player))
+    homes = ' '.join(getHomes(server,info.player))
     if homes != '':
         tellMessage(server,info.player,f"您设置的家园传送点有：\n\n    {homes}\n")
     else:
@@ -588,7 +620,7 @@ def tp_back(server,info): # !! tp back
         tellMessage(server,info.player,f"无法执行操作， 因为缺少 {permission} 权限，如果您确信这不应发生请联系管理员")
         return
     sec = getConfigKey('teleport_hold_time')
-    pos = getLastTpPos(info.player)
+    pos = getLastTpPos(server,info.player)
     if pos != []:
         if sec != 0:
             tellMessage(server,info.player,f"系统已收到指令， 将在 {sec} 秒后回溯传送")
@@ -599,10 +631,10 @@ def tp_back(server,info): # !! tp back
         if getConfigKey('void_protect') is True and pos[1] < 1:
             tellMessage(server,info.player,f"无法执行操作， 目标已在虚空中 (x={round(pos[0],2)} y={round(pos[1],2)} z={round(pos[2],2)})")
             return
-        pos = getLastTpPos(info.player,True)
+        pos = getLastTpPos(server,info.player,True)
         coordinate = getPlayerCoordinate(server,player=info.player)
         dimension = getPlayerDimension(server,player=info.player)
-        writeLastTpPos(info.player,coordinate.x,coordinate.y,coordinate.z,dimension)
+        writeLastTpPos(server,info.player,coordinate.x,coordinate.y,coordinate.z,dimension)
         server.execute(f"execute in {pos[3]} run tp {info.player} {pos[0]} {pos[1]} {pos[2]}")
     else:
         tellMessage(server,info.player,'您没有可回溯的传送')

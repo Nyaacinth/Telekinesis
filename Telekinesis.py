@@ -15,13 +15,14 @@ class InvalidCommandError(Exception):
 PLUGIN_METADATA = {
     'name': 'Telekinesis',
     'id': 'telekinesis',
-    'version': '0.4.2',
+    'version': '0.4.3',
     'description': 'Another Teleportation Plugin for MCDR',
     'author': 'Nyaacinth',
     'link': 'https://github.com/Nyaacinth/Telekinesis',
     'dependencies': {
         'mcdreforged': '>=1.0.0',
-        'minecraft_data_api': '>=1.3.0'
+        'minecraft_data_api': '>=1.3.0',
+        'more_apis': '>=0.1.2'
     }
 }
 
@@ -655,6 +656,12 @@ def tp_ask(server,info,command): # !! tp ask <playername>
         createReq(server,info.player,command[2])
         handleReq(server,info.player,command[2])
 
+@new_thread
+def death_handle(server,playername):
+    coordinate = getPlayerCoordinate(server,playername)
+    dimension = getPlayerDimension(server,playername)
+    writeLastTpPos(server,playername,coordinate.x,coordinate.y,coordinate.z,dimension)
+
 # 外部事件处理
 
 def on_load(server,prev): # 插件初始化
@@ -675,6 +682,12 @@ def on_load(server,prev): # 插件初始化
         writeLastTpPosList({})
     writeReqList([])
     server.register_help_message(f"{Prefix} help",f"显示 {PLUGIN_METADATA['name']} 帮助")
+    server.register_event_listener('more_apis.death_message', on_death_message)
+
+def on_death_message(server,death_message):
+    playername = death_message.split()[0]
+    death_handle(server,playername)
+    tellMessage(server,playername,'提示： 您可以使用 !!tp back 返回死亡地点')
 
 def on_user_info(server,info): # 接收输入
     Prefix = getConfigKey('command_prefix')

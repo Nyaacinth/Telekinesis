@@ -660,8 +660,9 @@ def tp_ask(server,info,command): # !! tp ask <playername>
 def death_handle(server,playername):
     coordinate = getPlayerCoordinate(server,playername)
     dimension = getPlayerDimension(server,playername)
-    tellMessage(server,playername,f"您的死亡地点位于 x = {round(coordinate.x,2)}, y = {round(coordinate.y,2)}, z = {round(coordinate.z,2)}, dim = {dimension}")
+    tellMessage(server,playername,f"您的死亡地点位于\n    x = {round(coordinate.x,2)}, y = {round(coordinate.y,2)}, z = {round(coordinate.z,2)}, dim = {dimension}")
     writeLastTpPos(server,playername,coordinate.x,coordinate.y,coordinate.z,dimension)
+    tellMessage(server,playername,'可以使用 !!tp back 返回死亡地点')
 
 # 外部事件处理
 
@@ -687,8 +688,7 @@ def on_load(server,prev): # 插件初始化
 
 def on_death_message(server,death_message):
     playername = death_message.split()[0]
-    death_handle(server,playername)
-    tellMessage(server,playername,'提示： 您可以使用 !!tp back 返回死亡地点')
+    death_handle(server,playername)    
 
 def on_user_info(server,info): # 接收输入
     Prefix = getConfigKey('command_prefix')

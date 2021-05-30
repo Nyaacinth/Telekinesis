@@ -660,6 +660,7 @@ def tp_ask(server,info,command): # !! tp ask <playername>
 def death_handle(server,playername):
     coordinate = getPlayerCoordinate(server,playername)
     dimension = getPlayerDimension(server,playername)
+    tellMessage(server,playername,f"您的死亡地点位于 x = {round(coordinate.x,2)}, y = {round(coordinate.y,2)}, z = {round(coordinate.z,2)}, dim = {dimension}")
     writeLastTpPos(server,playername,coordinate.x,coordinate.y,coordinate.z,dimension)
 
 # 外部事件处理

@@ -103,14 +103,16 @@ Telekinesis 直接使用对应用户组作为键名，并存在以下权限：
 
 [MinecraftDataAPI](https://github.com/MCDReforged/MinecraftDataAPI) (>=1.3.0)：引用 API
 
-### Todo
+[MoreAPIs](https://github.com/HuajiMUR233/MoreAPIs) (>=0.1.2)：引用 API
+
+### Features
 
 - [x] 原 tpHelper 的关键功能（请求传送 & 回溯传送）
 - [x] 支持 tp/set/del home 功能
-- [ ] 支持玩家死亡的回溯传送（正在尝试基于 [MoreAPIs](https://github.com/HuajiMUR233/MoreAPIs) 实现）
-- [ ] 基于 UUID 辨识玩家（正在尝试基于 [MinecraftDataAPI](https://github.com/MCDReforged/MinecraftDataAPI) (>=1.3.0) 实现）
-- [ ] ~~消耗经验的传送~~（暂不可实现， Mojang 限制玩家数据不可通过指令修改）
+- [x] 支持玩家死亡的回溯传送
+- [x] 基于 UUID 辨识玩家
 - [x] 类 Essentials 的延时传送
 - [x] 支持权限管理
+- [ ] 多语言支持
 
-にゃ！
+喵？喵喵喵喵！！

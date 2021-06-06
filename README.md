@@ -105,6 +105,10 @@ Telekinesis 直接使用对应用户组作为键名，并存在以下权限：
 
 [MoreAPIs](https://github.com/HuajiMUR233/MoreAPIs) (>=0.1.2)：引用 API
 
+### 数据迁移
+
+参见 [Teleconvert](https://github.com/Nyaacinth/Teleconvert)
+
 ### Features
 
 - [x] 原 tpHelper 的关键功能（请求传送 & 回溯传送）

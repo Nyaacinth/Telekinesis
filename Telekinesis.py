@@ -15,7 +15,7 @@ class InvalidCommandError(Exception):
 PLUGIN_METADATA = {
     'name': 'Telekinesis',
     'id': 'telekinesis',
-    'version': '1.0.0',
+    'version': '1.0.1',
     'description': 'Another Teleportation Plugin for MCDR',
     'author': 'Nyaacinth',
     'link': 'https://github.com/Nyaacinth/Telekinesis',
@@ -28,9 +28,9 @@ PLUGIN_METADATA = {
 
 message_prefix = '§d[Telekinesis] §6' # 消息前缀
 
-config_version = 5 # 当前配置文件版本
+config_version = 6 # 当前配置文件版本
 
-valid_config_versions = range(1,5+1) # 有效的配置文件版本范围
+valid_config_versions = range(1,config_version+1) # 有效的配置文件版本范围
 
 valid_usergroups = ['guest','user','helper','admin','owner'] # 实用户组
 
@@ -45,6 +45,7 @@ config:
     teleport_hold_time: 0
     level_location: server/world
     void_protect: true
+    void_height: 0
     player_id_type: uuid
 permission:
     guest:
@@ -76,7 +77,7 @@ def upgradeConfig(server): # 更新配置文件
         portalocker.lock(f, portalocker.LOCK_SH)
         old_data = yaml.safe_load(f)
         data = yaml.safe_load(default_config)
-        data.update(old_data)
+        data['config'].update(old_data['config'])
         from_config_version = old_data['config_version']
     if from_config_version in range(1, 3+1):
         data['config']['player_id_type'] = 'name'
@@ -85,6 +86,8 @@ def upgradeConfig(server): # 更新配置文件
         if 'detect_player_by' in old_data['config']:
             del data['config']['detect_player_by']
         data['config']['player_id_type'] = 'name'
+        _processed = True
+    if from_config_version == 5:
         _processed = True
     if _processed == True:
         data['config_version'] = config_version
@@ -111,12 +114,18 @@ def getConfigKey(keyname): # 读取配置键
     return 'unknown_key'
 
 def updateConfigKey(keyname,value): # 更新配置键
+    def isDigit(meow):
+        try:
+            int(meow)
+            return True
+        except ValueError:
+            return False
     with open(f"config/{PLUGIN_METADATA['name']}/config.yaml",'r',encoding='utf8') as f:
         portalocker.lock(f, portalocker.LOCK_SH)
         data = yaml.safe_load(f)
     default_data = yaml.safe_load(default_config)
     if keyname in default_data['config'].keys():
-        if value.isdigit() and isinstance(default_data['config'][keyname],int):
+        if isDigit(value.lower()) and isinstance(default_data['config'][keyname],int):
             data['config'][keyname] = int(value)
         elif value.lower() == 'true' and isinstance(default_data['config'][keyname],bool):
             data['config'][keyname] = True
@@ -359,7 +368,7 @@ def deleteReq(player): # 删除传送请求
         reqlist.pop(find)
         writeReqList(reqlist)
 
-def createReq(server,sendby,to): # 新增传送请求
+def createReq(sendby,to): # 新增传送请求
     reqlist = readReqList()
     reqlist.append({'sendby':sendby,'to':to,'status':'wait'})
     writeReqList(reqlist)
@@ -381,6 +390,10 @@ def handleReq(server,sendby,to): # 处理传送请求
         elif req['status'] == 'yes': # 同意
             sec = getConfigKey('teleport_hold_time')
             if sec != 0:
+                teleport_hold_enabled = True
+            else:
+                teleport_hold_enabled = False
+            if teleport_hold_enabled:
                 tellMessage(server,to,f"已同意来自玩家 {sendby} 的传送请求， 将在 {sec} 秒后开始传送")
                 tellMessage(server,sendby,f"玩家 {to} 已同意传送请求， 将在 {sec} 秒后传送到玩家 {to} 身边")
             else:
@@ -393,6 +406,9 @@ def handleReq(server,sendby,to): # 处理传送请求
             dimension = getPlayerDimension(server,player=sendby)
             writeLastTpPos(server,sendby,coordinate.x,coordinate.y,coordinate.z,dimension)
             server.execute(f"tp {sendby} {to}")
+            if teleport_hold_enabled:
+                tellMessage(server,to,f"玩家 {sendby} 正在传送到你身边")
+                tellMessage(server,sendby,f"正在传送到玩家 {to} 身边")
             break
         elif req['status'] == 'no': # 不同意
             tellMessage(server,to,f"已拒绝来自玩家 {sendby} 的传送请求， 取消传送")
@@ -575,6 +591,7 @@ def tp_home(server,info,command=None): # !!tp home
     else:
         tellMessage(server,info.player,f"家园传送点 {home} 不存在， 请先创建一个")
 
+@new_thread # 原因：间接引用了 MinecraftDataAPI（getPlayerCoordinate/getPlayerDimension）
 def tp_delhome(server,info,command=None): # !!tp delhome
     permission = 'home_manage'
     if not verifyPermission(server,info.player,permission):
@@ -591,6 +608,7 @@ def tp_delhome(server,info,command=None): # !!tp delhome
     else:
         tellMessage(server,info.player,f"家园传送点 {home} 不存在")
 
+@new_thread # 原因：间接引用了 MinecraftDataAPI（getPlayerCoordinate/getPlayerDimension）
 def tp_homes(server,info): # !!tp homes
     permission = 'home'
     if not verifyPermission(server,info.player,permission):
@@ -629,7 +647,7 @@ def tp_back(server,info): # !! tp back
             time.sleep(1)
             sec -= 1
         tellMessage(server,info.player,'正在进行回溯传送')
-        if getConfigKey('void_protect') is True and pos[1] < 1:
+        if getConfigKey('void_protect') is True and pos[1] < getConfigKey('void_height'):
             tellMessage(server,info.player,f"无法执行操作， 目标已在虚空中 (x={round(pos[0],2)} y={round(pos[1],2)} z={round(pos[2],2)})")
             return
         pos = getLastTpPos(server,info.player,True)
@@ -653,7 +671,7 @@ def tp_ask(server,info,command): # !! tp ask <playername>
     elif findReqBy('to',command[1]):
         tellMessage(server,info.player,'请求失败， 对方仍有待处理传送请求')
     else:
-        createReq(server,info.player,command[2])
+        createReq(info.player,command[2])
         handleReq(server,info.player,command[2])
 
 @new_thread

@@ -46,12 +46,13 @@ If you need English support, please open an issue and let me know about that, ma
 
 |键名|默认值|数据类型|含义|
 |----|----|----|----|
-|`config_version`|`4`|整型|配置文件版本，请勿修改|
+|`config_version`|`6`|整型|配置文件版本，请勿修改|
 |`command_prefix`|`!!tp`|字符串|指令前缀|
 |`level_location`|`server/world`|字符串|level.dat 所在目录，用于检测出生点|
 |`teleport_hold_time`|`0`|整型|传送执行前等待的时间（单位：秒）|
 |`teleport_request_timeout`|`30`|整型|传送请求超时的时间，设为 0 永不超时（单位：秒）|
 |`void_protect`|`true`|布尔值|是否防止玩家 back 时落入虚空|
+|`void_height`|0|整型|虚空起始高度，若使用了新地形数据包请修改为 -64|
 |`player_id_type`|`uuid`<sup>[1]</sup>|字符串|玩家辨识依据（ `uuid` 或 `name` ）
 
 [1]： 若从配置文件版本 4 及以下的版本升级则自动设为 `name` 以维持兼容性

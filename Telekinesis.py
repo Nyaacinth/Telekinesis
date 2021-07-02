@@ -76,9 +76,11 @@ def upgradeConfig(server): # 更新配置文件
     with open(f"config/{PLUGIN_METADATA['name']}/config.yaml",'r',encoding='utf8') as f:
         portalocker.lock(f, portalocker.LOCK_SH)
         old_data = yaml.safe_load(f)
-        data = yaml.safe_load(default_config)
-        data['config'].update(old_data['config'])
-        from_config_version = old_data['config_version']
+    data = yaml.safe_load(default_config)
+    data['config'].update(old_data['config'])
+    if 'permission' in old_data:
+        data['permission'].update(old_data['permission'])
+    from_config_version = old_data['config_version']
     if from_config_version in range(1, 3+1):
         data['config']['player_id_type'] = 'name'
         _processed = True

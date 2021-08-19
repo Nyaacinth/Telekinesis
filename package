@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -e
+cd "$(dirname "$0")"
+
+function print_info() {
+    if [ "$2" = 'error' ]; then
+        echo -e "\033[1m[\033[31mERROR\033[0m\033[1m] >>> $1\033[0m"
+    elif [ "$2" = 'note' ]; then
+        echo -e "\033[1m[\033[34mNOTE\033[0m\033[1m] >>> $1\033[0m"
+    else
+        echo -e "\033[1m[\033[32mINFO\033[0m\033[1m] >>> $1\033[0m"
+    fi
+}
+trap 'print_info "Something went wrong, please check your configuration. (::$?)" error' ERR
+
+plugin_id= #null
+plugin_version= #null
+if [ -f "mcdreforged.plugin.json" ]; then
+    plugin_id=`grep -oP '(?<="id": ")[^"]*' mcdreforged.plugin.json`
+    plugin_version=`grep -oP '(?<="version": ")[^"]*' mcdreforged.plugin.json`
+else
+    print_info "Could not find metadata (\"mcdreforged.plugin.json\"), please check your configuration" error
+fi
+if [ "${plugin_id}" = "" ] || [ "${plugin_version}" = "" ]; then
+    print_info "Invalid metadata"
+fi
+
+if ! hash zip; then
+    print_info "Could not find command \"zip\", which is required and you can install it using the package manager provided by system" error
+fi
+
+print_info "Package Task: ${plugin_id}-v${plugin_version}.mcdr"
+
+task_start_time=$(date "+%s")
+rm -rf _dist; mkdir _dist
+cat package_includes.txt | while read filename; do
+    cp -r "${filename}" _dist
+done
+pushd _dist > /dev/null
+    zip "../${plugin_id}-v${plugin_version}.mcdr" -r .* -x "../*"
+popd > /dev/null
+rm -rf _dist
+task_end_time=$(date "+%s")
+
+print_info "Task Finished! (finished in $((task_end_time - task_start_time)) seconds)"

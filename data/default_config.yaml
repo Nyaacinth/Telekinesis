@@ -1,0 +1,25 @@
+config_version: 10
+config:
+    command_prefix: '!!tp'
+    teleport_request_timeout: 30
+    teleport_hold_time: 0
+    level_location: server/world
+    void_protect: true
+    void_height: 0
+    player_id_type: uuid
+permission:
+    guest:
+    - spawn
+    user:
+    - guest
+    - back
+    - ask_answer
+    - home
+    - home_manage
+    helper:
+    - user
+    admin:
+    - helper
+    - config
+    owner:
+    - all

@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+set -e
+cd "$(dirname "$0")"
+
+PYTHON_EXECUTABLE="python" # Define python executable path or command
+
+function print_info() {
+    if [ "$2" = 'error' ]; then
+        echo -e "\033[1m[\033[31mERROR\033[0m\033[1m] >>> $1\033[0m"
+    elif [ "$2" = 'note' ]; then
+        echo -e "\033[1m[\033[34mNOTE\033[0m\033[1m] >>> $1\033[0m"
+    else
+        echo -e "\033[1m[\033[32mINFO\033[0m\033[1m] >>> $1\033[0m"
+    fi
+}
+trap 'print_info "Something went wrong (::$?)" error' ERR
+
+if ! `${PYTHON_EXECUTABLE} -c 'import sys;print(str(sys.version_info[0] >= 3).lower())'`; then
+    print_info "Python Version < 3, check variable PYTHON_EXECUTABLE in script if you need python3 command" error
+    exit 2
+fi
+
+function _python() {"${PYTHON_EXECUTABLE}" $@}
+
+if [ -d ".env" ] && [ -f ".env/bin/python" ] && `.env/bin/python -c 'import sys;print(str(sys.version_info[0] >= 3).lower())'`; then
+    print_info "Environment has been satisfied, continue" note
+    source .env/bin/activate
+else
+    print_info "Setting up environment"
+    rm -rf .env
+    _python -m venv .env
+    source .env/bin/activate
+fi
+
+pip install -r requirements.txt
+
+print_info "All done, now you can set interpreter path in IDE or run \"source .env/bin/activate\" to finish configuration"

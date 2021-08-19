@@ -20,7 +20,9 @@ if ! `${PYTHON_EXECUTABLE} -c 'import sys;print(str(sys.version_info[0] >= 3).lo
     exit 2
 fi
 
-function _python() {"${PYTHON_EXECUTABLE}" $@}
+function _python() {
+    "${PYTHON_EXECUTABLE}" $@
+}
 
 if [ -d ".env" ] && [ -f ".env/bin/python" ] && `.env/bin/python -c 'import sys;print(str(sys.version_info[0] >= 3).lower())'`; then
     print_info "Environment has been satisfied, continue" note

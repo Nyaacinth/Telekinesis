@@ -2,4 +2,5 @@ mcdreforged.plugin.json
 requirements.txt
 telekinesis
 data
+lang
 LICENSE

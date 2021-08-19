@@ -1,0 +1,15 @@
+guest:
+  - spawn
+user:
+  - guest
+  - back
+  - ask_answer
+  - home
+  - home_manage
+helper:
+  - user
+admin:
+  - helper
+  - config
+owner:
+  - all
